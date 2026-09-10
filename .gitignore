@@ -1,0 +1,25 @@
+# Go
+/dist/
+/ipcprobe
+/ipcprobe-*
+*.exe
+*.test
+*.out
+vendor/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Captures — NEVER commit real captures: they contain admin passwords (base64) and device identifiers.
+# Sanitized vectors live in testdata/vectors.json instead.
+*.pcap
+*.pcapng
+
+# macOS / editors
+.DS_Store
+*.swp
+.idea/
+.vscode/

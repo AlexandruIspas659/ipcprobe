@@ -1,0 +1,111 @@
+# GoReleaser config — on every `v*` tag: builds macOS (universal), Linux and Windows binaries, publishes a GitHub
+# release with the notes below, and pushes/updates the Homebrew formula in AlexandruIspas659/homebrew-tap.
+#
+# Cut a release with:   git tag v0.1.0 && git push --tags
+# Requires one repo secret in the ipcprobe repo: HOMEBREW_TAP_TOKEN (fine-grained PAT, "Contents: read & write"
+# on the homebrew-tap repo). The default GITHUB_TOKEN can't write to a different repo.
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: ipcprobe
+    main: ./cmd/ipcprobe
+    binary: ipcprobe
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}}
+
+# Combine the two macOS builds into one universal binary (what the Homebrew formula installs).
+universal_binaries:
+  - id: ipcprobe
+    replace: true
+
+archives:
+  - id: ipcprobe
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - PROTOCOL.md
+
+checksum:
+  name_template: "checksums.txt"
+
+# Homebrew tap: GoReleaser writes Formula/ipcprobe.rb into github.com/AlexandruIspas659/homebrew-tap on each release.
+# Users then:  brew install AlexandruIspas659/tap/ipcprobe
+brews:
+  - name: ipcprobe
+    repository:
+      owner: AlexandruIspas659
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    commit_author:
+      name: goreleaser-bot
+      email: bot@goreleaser.com
+    commit_msg_template: "ipcprobe {{ .Tag }}"
+    homepage: "https://github.com/AlexandruIspas659/ipcprobe"
+    description: "Discover and reconfigure TVT/OEM (e.g. DVC) IP cameras on a LAN — a cross-platform IPTool replacement"
+    license: "MIT"
+    skip_upload: auto            # don't publish the formula for pre-releases (v0.2.0-rc1 etc.)
+    install: |
+      bin.install "ipcprobe"
+    test: |
+      assert_match "ipcprobe", shell_output("#{bin}/ipcprobe --version")
+
+release:
+  # Not a draft: the Homebrew formula points at the release assets, which must be public the moment it lands.
+  # Pre-release tags (anything with a hyphen, e.g. v0.2.0-rc1) are marked pre-release automatically.
+  draft: false
+  prerelease: auto
+  name_template: "ipcprobe {{ .Tag }}"
+  # The human-written notes for the release page live in CHANGELOG.md; the matching section is pasted here.
+  # Update this block when you cut a new version (or leave just the pointer and let the commit list speak).
+  header: |
+    A cross-platform command-line replacement for the Windows-only **IPTool / IPC Manager** utility that ships
+    with TVT-made IP cameras (sold under many OEM brands, e.g. DVC). Discovers cameras on the LAN and sets a
+    camera's IP / netmask / gateway / DNS by MAC address — **including cameras on a foreign subnet that you
+    cannot reach by IP**, which is the situation this tool exists for.
+
+    **Install**
+
+    ```
+    brew install AlexandruIspas659/tap/ipcprobe        # macOS (Homebrew)
+    ```
+    or grab the binary for your platform below (macOS build is universal: Apple Silicon + Intel).
+
+    **Usage**
+
+    ```
+    ipcprobe list [--iface en0] [--wide] [--json]
+    ipcprobe show --mac 58:5b:69:00:00:01
+    ipcprobe set  --mac 58:5b:69:00:00:01 --ip 192.168.1.68 --mask 255.255.255.0 --gw 192.168.1.1
+    ```
+
+    Full notes in [CHANGELOG.md](https://github.com/AlexandruIspas659/ipcprobe/blob/main/CHANGELOG.md);
+    wire protocol in [PROTOCOL.md](https://github.com/AlexandruIspas659/ipcprobe/blob/main/PROTOCOL.md).
+  footer: |
+    ---
+    Verified on a live fleet of five TVT/DVC cameras and one NVR from macOS. The protocol is unauthenticated
+    multicast and carries the admin password base64-encoded — a property of the camera firmware; segregate your
+    camera VLAN. ipcprobe never stores or logs passwords.
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^ci:"
