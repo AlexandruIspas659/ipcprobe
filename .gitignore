@@ -23,3 +23,6 @@ venv/
 *.swp
 .idea/
 .vscode/
+
+# archives dropped here for convenience (e.g. homebrew-tap.zip) — never part of the repo
+*.zip

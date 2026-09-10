@@ -5,7 +5,7 @@ The Go module path is already `github.com/AlexandruIspas659/ipcprobe`.
 ## 1. Build and try it (optional — there's a prebuilt `ipcprobe` in this folder already)
 
 ```bash
-cd ~/Documents/dev/ipcprobe
+cd ~/Documents/dev/cctv/ipcprobe
 go build -o ipcprobe ./cmd/ipcprobe      # standard library only — works offline
 go test ./...
 ./ipcprobe list --iface en0
@@ -19,17 +19,23 @@ go test ./...
 
 ## 3. Push both
 
+First make sure the CI workflow is the current one (the bridge can't write into `.github/workflows`):
+
+```bash
+cp ~/Documents/dev/cctv/iptool/"Claude outputs"/release.yml ~/Documents/dev/cctv/ipcprobe/.github/workflows/release.yml
+```
+
 ```bash
 # main repo
-cd ~/Documents/dev/ipcprobe
+cd ~/Documents/dev/cctv/ipcprobe
 git init -b main
 git add .
 git commit -m "ipcprobe 0.1.0: MHED protocol spec, Go CLI, Python reference"
 git remote add origin git@github.com:AlexandruIspas659/ipcprobe.git
 git push -u origin main
 
-# tap repo (unzip homebrew-tap.zip next to it first)
-cd ~/Documents/dev/homebrew-tap
+# tap repo (already unzipped next to ipcprobe)
+cd ~/Documents/dev/cctv/homebrew-tap
 git init -b main
 git add .
 git commit -m "tap: ipcprobe (head formula; GoReleaser will version it)"
@@ -51,7 +57,7 @@ GoReleaser runs in the ipcprobe repo's CI but has to commit into the *tap* repo,
 ## 5. Cut the release
 
 ```bash
-cd ~/Documents/dev/ipcprobe
+cd ~/Documents/dev/cctv/ipcprobe
 git tag v0.1.0
 git push --tags
 ```
