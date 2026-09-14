@@ -23,10 +23,11 @@ reason you need a tool like this.
 ### Homebrew (macOS)
 
 ```
-brew install AlexandruIspas659/tap/ipcprobe
+brew install --cask AlexandruIspas659/tap/ipcprobe
 ```
 
-Installed through Homebrew there is no Gatekeeper "unidentified developer" prompt.
+The cask clears macOS's quarantine flag on install, so there is no Gatekeeper "unidentified developer" prompt.
+Upgrading from the 0.1.x formula: `brew uninstall ipcprobe` first, then install the cask.
 
 ### Prebuilt binaries
 

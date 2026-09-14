@@ -2,7 +2,7 @@
 
 All notable changes to ipcprobe. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.2.0] — 2026-09-14
 
 ### Added
 
@@ -16,6 +16,9 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
 
 ### Changed
 
+- Homebrew now publishes a **cask** instead of a formula: `brew install --cask AlexandruIspas659/tap/ipcprobe`.
+  The cask strips macOS's quarantine attribute at install time, so the unsigned binary runs from a terminal without a
+  Gatekeeper prompt. Existing formula installs: `brew uninstall ipcprobe` then install the cask.
 - `--iface` on a VPN / point-to-point interface now explains that the protocol is link-layer multicast and cannot
   cross a tunnel, instead of reporting "no IPv4 address".
 - Default `--confirm-timeout` raised from 8 s to 15 s; the not-confirmed message no longer asserts a wrong password
@@ -81,5 +84,6 @@ back, and a camera moved to 10.0.0.x and recovered while the host stayed on 192.
   sniffing the camera VLAN can read it. This is a property of the camera firmware, not of this tool — segregate
   the camera VLAN. ipcprobe never stores or logs passwords.
 
+[0.2.0]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.2.0
 [0.1.1]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.1.1
 [0.1.0]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.1.0

@@ -1,5 +1,5 @@
 # GoReleaser config — on every `v*` tag: builds macOS (universal), Linux and Windows binaries, publishes a GitHub
-# release with the notes below, and pushes/updates the Homebrew formula in AlexandruIspas659/homebrew-tap.
+# release with the notes below, and pushes/updates the Homebrew cask in AlexandruIspas659/homebrew-tap.
 #
 # Cut a release with:   git tag v0.1.0 && git push --tags
 # Requires one repo secret in the ipcprobe repo: HOMEBREW_TAP_TOKEN (fine-grained PAT, "Contents: read & write"
@@ -41,16 +41,19 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
-# Homebrew tap: GoReleaser writes Formula/ipcprobe.rb into github.com/AlexandruIspas659/homebrew-tap on each release.
-# Users then:  brew install AlexandruIspas659/tap/ipcprobe
-brews:
+# Homebrew tap: GoReleaser writes Casks/ipcprobe.rb into github.com/AlexandruIspas659/homebrew-tap on each release.
+# (Casks, not formulas: GoReleaser deprecated `brews` for prebuilt binaries, and a cask can drop the Gatekeeper
+# quarantine flag, which an unsigned binary needs.)  Users then:
+#   brew install --cask AlexandruIspas659/tap/ipcprobe
+homebrew_casks:
   - name: ipcprobe
+    binaries: [ipcprobe]
+    directory: Casks
     repository:
       owner: AlexandruIspas659
       name: homebrew-tap
       branch: main
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
     commit_author:
       name: goreleaser-bot
       email: bot@goreleaser.com
@@ -58,11 +61,13 @@ brews:
     homepage: "https://github.com/AlexandruIspas659/ipcprobe"
     description: "Discover and reconfigure TVT/OEM (e.g. DVC) IP cameras on a LAN — a cross-platform IPTool replacement"
     license: "MIT"
-    skip_upload: auto            # don't publish the formula for pre-releases (v0.2.0-rc1 etc.)
-    install: |
-      bin.install "ipcprobe"
-    test: |
-      assert_match "ipcprobe", shell_output("#{bin}/ipcprobe --version")
+    # The binary is not signed/notarized: strip the quarantine attribute so Gatekeeper lets it run from a terminal.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/ipcprobe"]
+          end
 
 release:
   # Not a draft: the Homebrew formula points at the release assets, which must be public the moment it lands.
@@ -81,7 +86,7 @@ release:
     **Install**
 
     ```
-    brew install AlexandruIspas659/tap/ipcprobe        # macOS (Homebrew)
+    brew install --cask AlexandruIspas659/tap/ipcprobe   # macOS (Homebrew)
     ```
     or grab the binary for your platform below (macOS build is universal: Apple Silicon + Intel).
 

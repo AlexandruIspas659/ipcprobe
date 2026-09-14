@@ -15,7 +15,7 @@ go test ./...
 
 - `AlexandruIspas659/ipcprobe` — public.
 - `AlexandruIspas659/homebrew-tap` — public. Homebrew requires exactly this name (`homebrew-` prefix) for
-  `brew install AlexandruIspas659/tap/ipcprobe` to resolve. Contents are in `homebrew-tap.zip`.
+  `brew install --cask AlexandruIspas659/tap/ipcprobe` to resolve. Contents are in `homebrew-tap.zip`.
 
 ## 3. Push both
 
@@ -67,7 +67,7 @@ publishes the GitHub release with the notes from `.goreleaser.yaml` (`release.he
 `checksums.txt`, and pushes `Casks/ipcprobe.rb` to the tap. A few minutes later, on any Mac:
 
 ```bash
-brew install AlexandruIspas659/tap/ipcprobe
+brew install --cask AlexandruIspas659/tap/ipcprobe
 ipcprobe --version
 ```
 
@@ -76,24 +76,8 @@ ipcprobe --version
 Bump `CHANGELOG.md`, update the `release.header` block in `.goreleaser.yaml` if the headline changed, then
 `git tag vX.Y.Z && git push --tags`. Tags with a hyphen (`v0.2.0-rc1`) are marked pre-release.
 
-### Pending: formula → cask switch (do this with the next release)
+### Homebrew: cask (since 0.2.0)
 
-v0.1.1 published a Homebrew **formula** (`Formula/ipcprobe.rb`) via GoReleaser's now-deprecated `brews` block.
-The working copy of `.goreleaser.yaml` already contains the replacement `homebrew_casks` block, and
-`homebrew-tap/README.md` is already reworded for casks — both uncommitted on purpose. A tap cannot hold a formula
-and a cask with the same name, so the switch is one atomic step:
-
-```bash
-# 1. tap: remove the formula (users who installed it keep their binary; `brew upgrade` will move them to the cask)
-cd ~/Documents/dev/cctv/homebrew-tap
-git rm Formula/ipcprobe.rb && git add README.md && git commit -m "tap: ipcprobe moves to a cask" && git push
-
-# 2. ipcprobe: commit the cask config and release
-cd ~/Documents/dev/cctv/ipcprobe
-git add .goreleaser.yaml && git commit -m "release: publish a Homebrew cask instead of a formula" && git push
-git tag v0.2.0 && git push --tags
-```
-
-After that the install command becomes `brew install --cask AlexandruIspas659/tap/ipcprobe`; change it in README.md
-and in `release.header` of `.goreleaser.yaml` in the same commit. Until then the published command is
-`brew install AlexandruIspas659/tap/ipcprobe` (no `--cask`).
+GoReleaser writes `Casks/ipcprobe.rb` into the tap on every release (`homebrew_casks` in `.goreleaser.yaml`).
+The 0.1.x releases used a formula; it was removed from the tap when 0.2.0 shipped. A tap cannot hold a formula and
+a cask with the same name, so never re-add `Formula/ipcprobe.rb`.
