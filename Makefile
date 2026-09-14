@@ -1,4 +1,4 @@
-.PHONY: build test test-short fakecam mhedpcap snapshot clean
+.PHONY: build test test-short fakecam mhedpcap app snapshot clean
 
 build:
 	go build -o ipcprobe ./cmd/ipcprobe
@@ -16,9 +16,13 @@ fakecam:
 mhedpcap:
 	go build -o mhedpcap ./cmd/mhedpcap
 
+# the macOS app: macos/dist/ipcprobe.app + .dmg (needs Xcode or the Command Line Tools)
+app:
+	macos/build-app.sh
+
 # local multi-platform build without publishing (needs goreleaser installed)
 snapshot:
 	goreleaser release --snapshot --clean
 
 clean:
-	rm -rf dist ipcprobe ipcprobe-* fakecam mhedpcap
+	rm -rf dist ipcprobe ipcprobe-* fakecam mhedpcap macos/dist macos/.build

@@ -30,3 +30,7 @@ venv/
 # local dev builds
 /fakecam
 /mhedpcap
+
+# macOS app build products
+/macos/.build/
+/macos/dist/
