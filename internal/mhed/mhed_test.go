@@ -111,6 +111,62 @@ func TestVectors(t *testing.T) {
 	}
 }
 
+// The announce vectors have every undocumented byte zeroed, so building from the decoded struct must reproduce the
+// exact bytes — BuildAnnounce and ParseAnnounce are true inverses of each other.
+func TestAnnounceRoundTrip(t *testing.T) {
+	vf := loadVectors(t)
+	n := 0
+	for _, v := range vf.Vectors {
+		if v.Cmd != CmdAnnounce {
+			continue
+		}
+		n++
+		pkt := mustHex(t, v.Hex)
+		built, err := BuildAnnounce(*v.Expect)
+		if err != nil {
+			t.Fatalf("%s: BuildAnnounce: %v", v.Name, err)
+		}
+		if !equal(built, pkt) {
+			t.Errorf("%s: BuildAnnounce(ParseAnnounce(x)) != x\n got: %x\nwant: %x", v.Name, built, pkt)
+		}
+		back, ok := ParseAnnounce(built)
+		if !ok || *back != *v.Expect {
+			t.Errorf("%s: parse(build) mismatch: %+v", v.Name, back)
+		}
+	}
+	if n == 0 {
+		t.Fatal("no announce vectors")
+	}
+}
+
+func TestSetAckRoundTrip(t *testing.T) {
+	vf := loadVectors(t)
+	for _, v := range vf.Vectors {
+		if v.Cmd != CmdSetAck {
+			continue
+		}
+		built, err := BuildSetAck(a4(v.ExpectAck.IP), v.ExpectAck.Port)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !equal(built, mustHex(t, v.Hex)) {
+			t.Errorf("BuildSetAck != vector\n got: %x\nwant: %x", built, mustHex(t, v.Hex))
+		}
+	}
+}
+
+func TestBuildAnnounceRejectsBadInput(t *testing.T) {
+	_, err := BuildAnnounce(Device{MAC: "nope"})
+	if err == nil {
+		t.Error("bad MAC accepted")
+	}
+	_, err = BuildAnnounce(Device{MAC: "02:00:00:00:00:01", IP: "1.2.3.4", Mask: "255.255.255.0", Gateway: "1.2.3.1",
+		DNS1: "1.2.3.1", DNS2: "8.8.8.8", Name: "this name is far too long for twenty bytes"})
+	if err == nil {
+		t.Error("overlong name accepted")
+	}
+}
+
 func TestSearchLayout(t *testing.T) {
 	p := BuildSearch()
 	if len(p) != 140 {

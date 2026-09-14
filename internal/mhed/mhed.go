@@ -111,13 +111,78 @@ func Command(pkt []byte) (uint16, bool) {
 	return binary.LittleEndian.Uint16(pkt[8:]), true
 }
 
-func header(cmd uint16) []byte {
+func header(cmd uint16) []byte { return headerWithVersion(verTX, cmd) }
+
+func headerWithVersion(ver, cmd uint16) []byte {
 	b := make([]byte, 10)
 	copy(b, magic)
-	binary.LittleEndian.PutUint16(b[4:], verTX)
+	binary.LittleEndian.PutUint16(b[4:], ver)
 	binary.LittleEndian.PutUint16(b[6:], hdrOne)
 	binary.LittleEndian.PutUint16(b[8:], cmd)
 	return b
+}
+
+// BuildAnnounce returns the 240-byte cmd-2 announcement a device would send for d. It is the inverse of
+// ParseAnnounce and exists so tests and the fake camera can speak the device side of the protocol. Undocumented
+// bytes are left zero; d.Src is ignored (it isn't part of the packet).
+func BuildAnnounce(d Device) ([]byte, error) {
+	mac, err := net.ParseMAC(d.MAC)
+	if err != nil || len(mac) != 6 {
+		return nil, fmt.Errorf("invalid MAC %q", d.MAC)
+	}
+	addrs := map[int]string{offIP: d.IP, offMask: d.Mask, offGateway: d.Gateway, offDNS1: d.DNS1, offDNS2: d.DNS2}
+	pkt := make([]byte, lenAnnounce)
+	copy(pkt, headerWithVersion(verRX, CmdAnnounce))
+	copy(pkt[offMAC:], mac)
+	for off, s := range addrs {
+		a, err := netip.ParseAddr(s)
+		if err != nil || !a.Is4() {
+			return nil, fmt.Errorf("invalid IPv4 address %q", s)
+		}
+		put4(pkt[off:], a)
+	}
+	if err := putCstr(pkt, offName, lenName, d.Name); err != nil {
+		return nil, err
+	}
+	for _, f := range []struct {
+		off, n int
+		v      string
+	}{{offSerial, 16, d.Serial}, {offFirmware, 16, d.Firmware}, {offModel, 16, d.Model}, {offVendor, lenVendor, d.Vendor}} {
+		if err := putCstr(pkt, f.off, f.n, f.v); err != nil {
+			return nil, err
+		}
+	}
+	binary.LittleEndian.PutUint16(pkt[offHTTP:], d.HTTP)
+	binary.LittleEndian.PutUint16(pkt[offRTSP:], d.RTSP)
+	if d.Build != "" {
+		var y, m, dd uint32
+		if n, _ := fmt.Sscanf(d.Build, "%4d-%2d-%2d", &y, &m, &dd); n != 3 {
+			return nil, fmt.Errorf("invalid build date %q (want YYYY-MM-DD)", d.Build)
+		}
+		binary.LittleEndian.PutUint32(pkt[offBuild:], y*10000+m*100+dd)
+	}
+	return pkt, nil
+}
+
+// BuildSetAck returns the 140-byte cmd-0x10 ack a device sends after receiving a set-network command, echoing the
+// requester's address and UDP source port. Inverse of ParseSetAck.
+func BuildSetAck(requester netip.Addr, port uint16) ([]byte, error) {
+	if !requester.Is4() {
+		return nil, fmt.Errorf("requester must be IPv4: %v", requester)
+	}
+	pkt := make([]byte, lenTX)
+	copy(pkt, headerWithVersion(verRX, CmdSetAck))
+	put4(pkt[ackIP:], requester)
+	binary.LittleEndian.PutUint16(pkt[ackPort:], port)
+	return pkt, nil
+}
+
+func putCstr(pkt []byte, off, n int, s string) error {
+	if len(s) > n-1 { // keep at least one NUL so the reader terminates
+		return fmt.Errorf("string %q longer than %d bytes", s, n-1)
+	}
+	copy(pkt[off:off+n], s)
+	return nil
 }
 
 // BuildSearch returns the 140-byte cmd-1 search probe.
