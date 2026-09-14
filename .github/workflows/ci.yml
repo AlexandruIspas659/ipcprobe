@@ -17,3 +17,14 @@ jobs:
       # Includes the end-to-end test against the in-process fake camera; it self-skips where the runner has
       # no multicast-capable interface.
       - run: go test ./...
+
+  # Compiles the SwiftUI app and assembles the bundle (no dmg) so a Swift error is caught on push, not at release.
+  macos-app:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - run: macos/build-app.sh --no-dmg
+      - run: ls -l macos/dist/ipcprobe.app/Contents/MacOS

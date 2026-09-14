@@ -28,3 +28,23 @@ jobs:
           # Fine-grained PAT with "Contents: read & write" on AlexandruIspas659/homebrew-tap.
           # Repo → Settings → Secrets and variables → Actions → New repository secret → HOMEBREW_TAP_TOKEN
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+  # The macOS app: built on a Mac runner after the release exists, bundling the *released* universal helper
+  # (downloaded from the release, not rebuilt) so the app and the CLI in the same release are byte-identical.
+  # Uploads ipcprobe_<version>_macOS.dmg as one more asset on that release.
+  macos-app:
+    needs: goreleaser
+    runs-on: macos-14
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: download the released helper
+        run: |
+          gh release download "$GITHUB_REF_NAME" --pattern "ipcprobe_darwin_all.tar.gz" --dir helper
+          tar -xzf helper/ipcprobe_darwin_all.tar.gz -C helper
+          lipo -info helper/ipcprobe
+      - name: build the app and dmg
+        run: macos/build-app.sh --version "${GITHUB_REF_NAME#v}" --helper helper/ipcprobe
+      - name: upload the dmg to the release
+        run: gh release upload "$GITHUB_REF_NAME" macos/dist/ipcprobe_*_macOS.dmg --clobber

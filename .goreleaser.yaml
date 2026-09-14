@@ -1,5 +1,6 @@
 # GoReleaser config — on every `v*` tag: builds macOS (universal), Linux and Windows binaries, publishes a GitHub
 # release with the notes below, and pushes/updates the Homebrew cask in AlexandruIspas659/homebrew-tap.
+# The macOS app (.dmg) is not GoReleaser's job: the `macos-app` job in release.yml adds it to the same release.
 #
 # Cut a release with:   git tag v0.1.0 && git push --tags
 # Requires one repo secret in the ipcprobe repo: HOMEBREW_TAP_TOKEN (fine-grained PAT, "Contents: read & write"
@@ -86,9 +87,12 @@ release:
     **Install**
 
     ```
-    brew install --cask AlexandruIspas659/tap/ipcprobe   # macOS (Homebrew)
+    brew install --cask AlexandruIspas659/tap/ipcprobe   # macOS (Homebrew), the CLI
     ```
     or grab the binary for your platform below (macOS build is universal: Apple Silicon + Intel).
+
+    **macOS app:** `ipcprobe_<version>_macOS.dmg` below (appears a few minutes after the other assets). It is not
+    notarized: on first launch right-click › Open, or `xattr -dr com.apple.quarantine /Applications/ipcprobe.app`.
 
     **Usage**
 
