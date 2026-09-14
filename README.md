@@ -1,6 +1,6 @@
 # ipcprobe
 
-A small, cross-platform CLI to discover and reconfigure TVT-made IP cameras (sold under many OEM brands, e.g. DVC)
+A small, cross-platform CLI — and a macOS app — to discover and reconfigure TVT-made IP cameras (sold under many OEM brands, e.g. DVC)
 on a LAN — the job the Windows-only **IPTool** / **IPC Manager** utility does, with no macOS equivalent until now.
 It finds cameras by listening for their multicast announcements and can set a camera's IP / netmask / gateway / DNS
 by MAC address, **even when the camera sits on a different subnet and can't be reached by IP** — which is the usual
@@ -20,7 +20,16 @@ reason you need a tool like this.
 
 ## Install
 
-### Homebrew (macOS)
+### macOS app
+
+Download `ipcprobe_<version>_macOS.dmg` from the latest [release](https://github.com/AlexandruIspas659/ipcprobe/releases),
+drag `ipcprobe.app` to Applications. The app is not notarized (no Apple Developer membership behind it): the first
+time, right-click › Open, or run `xattr -dr com.apple.quarantine /Applications/ipcprobe.app`. On the first scan
+macOS asks for *Local Network* permission — allow it, or every scan comes back empty.
+
+The app is a front end over the exact same binary as the CLI below (bundled inside it); see [macos/README.md](macos/README.md).
+
+### Homebrew (macOS) — the CLI
 
 ```
 brew install --cask AlexandruIspas659/tap/ipcprobe
@@ -47,13 +56,15 @@ ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json]
 ipcprobe show --mac 58:5b:69:00:00:01 [--iface en0] [--json]
 ipcprobe set  --mac 58:5b:69:00:00:01 --ip 192.168.1.68 --mask 255.255.255.0 --gw 192.168.1.1 \
               [--dns1 ...] [--dns2 ...] [--iface en0] [--password ...] [--force]
+ipcprobe interfaces [--json]
 ```
 
 - `list` — discover every camera on the segment; `--wide` adds HTTP/RTSP port and firmware build date, `--json`
   emits machine-readable output.
 - `show` — every field for one camera, including its `http://` and `rtsp://` URLs.
+- `interfaces` — the interfaces `--iface` accepts (up, multicast-capable, with an IPv4 address).
 - `set` — change a camera's network config. Prompts for the admin password (never echoed, never written to disk or
-  logs). It refuses to fire at a MAC it can't currently see (`--force` overrides), then confirms by waiting for the
+  logs; read silently from stdin when piped, e.g. by the app). It refuses to fire at a MAC it can't currently see (`--force` overrides), then confirms by waiting for the
   camera's ack and its re-announcement at the new IP; exit code 2 if that doesn't happen (e.g. wrong password).
 
 On macOS, the wired camera interface is usually `en0` for built-in Ethernet or `en5`/`en6` for a USB‑C adapter
@@ -73,6 +84,7 @@ PROTOCOL.md            the wire protocol (the real deliverable)
 docs/ARCHITECTURE.md   how the code works, layer by layer
 docs/RELEASING.md      how a tag becomes binaries, a GitHub release and a Homebrew entry
 cmd/ipcprobe/          the CLI
+macos/                 the macOS app (SwiftUI; bundles and drives the CLI) — see macos/README.md
 cmd/fakecam/           a software camera for testing without hardware (dev tool, not released)
 cmd/mhedpcap/          list / decode / diff MHED frames in a Wireshark capture (dev tool, not released)
 internal/mhed/         the protocol: packet build/parse, no I/O
@@ -88,6 +100,7 @@ testdata/vectors.json  sanitized conformance vectors — the contract any implem
 go test ./...                              # unit + vectors + end-to-end (needs a multicast-capable interface)
 go run ./cmd/fakecam --iface en0           # software camera; then `ipcprobe list` / `set` in another terminal
 go run ./cmd/mhedpcap list capture.pcapng  # inspect a Wireshark capture; `show`/`diff --frame N` for one frame
+make app                                   # macOS: build macos/dist/ipcprobe.app and the .dmg
 ```
 
 ## License

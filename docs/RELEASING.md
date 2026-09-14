@@ -131,7 +131,7 @@ Creates the GitHub release for the tag using `GITHUB_TOKEN` and uploads the arch
 drop noise commits — anything starting with `docs:`, `chore:`, `ci:` — so the list is only user-relevant changes.
 This is why commit messages matter: they *are* the release notes' middle section.
 
-### The Homebrew stage — currently a formula, moving to a cask
+### The Homebrew stage — `homebrew_casks`
 
 Homebrew installs from a **tap**: a Git repository named `homebrew-<something>` containing Ruby files that describe
 where to download a package and how to install it. Ours is `AlexandruIspas659/homebrew-tap`, so users write
@@ -139,27 +139,47 @@ where to download a package and how to install it. Ours is `AlexandruIspas659/ho
 
 GoReleaser generates that Ruby file for us on every release: it renders a template with the release's download URL
 for the macOS archive, the SHA-256 from `checksums.txt`, the version, homepage, description and license, then
-**commits it into the tap repository**. That commit is why a second credential exists: `GITHUB_TOKEN` can only write
-to `ipcprobe`, and the tap is a different repository. `HOMEBREW_TAP_TOKEN` is a fine-grained personal access token
-with *Contents: read & write* on `homebrew-tap` only — the narrowest thing that can make that commit.
+**commits it into the tap repository** as `Casks/ipcprobe.rb`. That commit is why a second credential exists:
+`GITHUB_TOKEN` can only write to `ipcprobe`, and the tap is a different repository. `HOMEBREW_TAP_TOKEN` is a
+fine-grained personal access token with *Contents: read & write* on `homebrew-tap` only — the narrowest thing that
+can make that commit.
 
-What `brew install` then does: reads the Ruby file from the tap, downloads the archive from the GitHub release,
-verifies the SHA-256, unpacks the binary into the Cellar, and symlinks it onto your `PATH`. `brew upgrade` compares
-the version in the tap file with what's installed. Every release therefore updates every user with no work on
-your part beyond pushing a tag.
+What `brew install --cask` then does: reads the Ruby file from the tap, downloads the archive from the GitHub
+release, verifies the SHA-256, puts the binary on your `PATH`, and runs the cask's post-install hook, which strips
+macOS's quarantine attribute so the unsigned binary runs without a Gatekeeper prompt. `brew upgrade` compares the
+version in the tap file with what's installed. Every release therefore updates every user with no work on your
+part beyond pushing a tag.
 
 **Formula vs cask.** A *formula* traditionally describes building software from source; a *cask* describes
-installing a prebuilt application. v0.1.1 was published with GoReleaser's `brews` section, which generates a formula
-that merely copies a prebuilt binary — GoReleaser now calls that approach deprecated and has replaced it with
-`homebrew_casks`, which is what the current `.goreleaser.yaml` in this repository contains. The cask has one practical
-advantage for us: it can strip macOS's quarantine attribute at install time (the `hooks.post.install` block), which
-an unsigned binary otherwise trips over. The switch is pending because a tap cannot hold a formula and a cask with
-the same name, so the old file must be deleted in the same step — the exact sequence is in
-[SETUP.md](../SETUP.md).
+installing a prebuilt application. 0.1.x published a formula (GoReleaser's `brews` section, now deprecated for
+prebuilt binaries); 0.2.0 switched to `homebrew_casks`. A tap cannot hold a formula and a cask of the same name,
+which is why the old `Formula/ipcprobe.rb` had to be deleted from the tap by hand at the switch.
+
+## 3b. The second job — `macos-app`
+
+GoReleaser runs on Linux and cannot build a macOS app bundle (it needs `swift`, `codesign`, `lipo`, `hdiutil`).
+So `release.yml` has a second job, `macos-app`, with `needs: goreleaser`: it starts only once the release and its
+assets exist. On a `macos-14` runner it:
+
+1. downloads `ipcprobe_darwin_all.tar.gz` **from the release just published** (`gh release download`), so the helper
+   inside the app is the very binary the CLI users get — not a second build that might differ;
+2. runs `macos/build-app.sh --version <tag without v> --helper <that binary>`: `swift build` (universal), assembles
+   `ipcprobe.app`, stamps the version into `Info.plist`, ad-hoc signs, wraps it in a `.dmg` with `hdiutil`;
+3. `gh release upload`s the `.dmg` as one more asset on the same release.
+
+`GH_TOKEN` there is the automatic `GITHUB_TOKEN` — same repository, so no extra secret. If this job fails, the
+release, the CLI assets and the Homebrew cask are all still fine; only the `.dmg` is missing. Fix and re-run just
+that job from the Actions page (it re-downloads the helper, so re-running is safe), or tag a patch.
+
+The app is **not notarized**. Notarization needs an Apple Developer ID certificate and an app-specific password
+stored as secrets, plus a `notarytool submit --wait` and `stapler staple` step in `build-app.sh`. Until then the
+release notes tell users to right-click › Open once.
 
 ## 4. The other workflow — `ci.yml`
 
-Runs on every push to `main` and on pull requests: checks out, sets up Go, runs `go vet`, `go build ./...` and `go test ./...` (including the end-to-end fake-camera test).
+Runs on every push to `main` and on pull requests. Two jobs: `go` (Ubuntu: `go vet`, `go build ./...`,
+`go test ./...` including the end-to-end fake-camera test) and `macos-app` (a Mac runner compiling the SwiftUI app
+and assembling the bundle without a dmg, so a Swift error is caught on push rather than at release time).
 It publishes nothing. Its job is to make the little green tick on a commit mean "this compiles and passes the
 vectors", so a broken commit is caught long before anyone tags it.
 
@@ -169,8 +189,8 @@ vectors", so a broken commit is caught long before anyone tags it.
    in `.goreleaser.yaml` too.
 2. Commit and push to `main`; wait for `ci` to go green.
 3. `git tag vX.Y.Z && git push --tags`.
-4. Watch Actions → `release`. Two to three minutes later the release page exists with six assets and the tap has a
-   new commit.
+4. Watch Actions → `release`. Two to three minutes later the release page exists with the CLI assets and the tap
+   has a new commit; the `.dmg` follows a few minutes after that, when the `macos-app` job finishes.
 5. `brew upgrade ipcprobe` (or a fresh install) on any Mac picks it up.
 
 If the release job fails *after* "release published" but before the Homebrew stage — as v0.1.0 did — the GitHub

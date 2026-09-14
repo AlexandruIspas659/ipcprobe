@@ -277,12 +277,31 @@ the project's only dependency. Instead, on macOS and Linux the tool runs `stty -
 stdin and `stty echo` after, which is what `x/term` does underneath anyway. If `stty` is missing (or on Windows) it
 warns and reads with echo rather than refusing to work.
 
+None of that happens when stdin is not a terminal (`os.Stdin.Stat()` without `ModeCharDevice`): the line is read
+silently — no prompt, no `stty`, no warning. That is the contract the macOS app relies on: it pipes the password in,
+so it is never an argument (visible in `ps`) and never printed.
+
+### `interfaces`
+
+`discovery.Interfaces()` as a table or JSON. It exists so a wrapper (the app's interface picker) gets exactly the
+set `--iface` accepts, with the same rules, instead of reimplementing them.
+
+## 4b. `macos/` — the app
+
+A SwiftUI front end with **no network code**. It bundles the CLI binary at `Contents/MacOS/ipcprobe-cli` and runs it:
+`interfaces --json` for the picker, `list --json` for the table, `set` for the change-network sheet, with the
+password written to the helper's stdin and its stderr streamed into the sheet as progress. The helper's exit code
+is the verdict (0 confirmed, 2 not confirmed, 1 setup error). Everything below the UI is therefore covered by the Go
+tests, and the app cannot drift from the CLI. `macos/README.md` has the file map, the build, and the permission and
+signing story.
+
 ## 5. Things the OS does that the code has to live with
 
 - **macOS Local Network permission.** The first time a program sends multicast, macOS asks the user to allow it, per
-  *responsible application* — for a terminal tool that means Terminal/iTerm. Deny it and every send silently goes
-  nowhere. A future GUI app must declare `NSLocalNetworkUsageDescription` in its Info.plist or the prompt never
-  appears at all.
+  *responsible application* — for a terminal tool that means Terminal/iTerm; for the app it means the app itself,
+  because a child process launched with `Process` is attributed to the app that launched it. Deny it and every send
+  silently goes nowhere. The app declares `NSLocalNetworkUsageDescription` in its Info.plist; without that key the
+  prompt never appears at all.
 - **Multicast loopback is off** by default for `ListenMulticastUDP`, so the tool doesn't hear its own probes. This
   is correct in production and is why a same-host fake camera needs its own sending socket.
 - **TTL.** The tool leaves the default multicast TTL (1). IPTool uses 5. On-segment it makes no difference; the

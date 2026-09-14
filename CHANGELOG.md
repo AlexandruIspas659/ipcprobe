@@ -2,6 +2,22 @@
 
 All notable changes to ipcprobe. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] — 2026-09-14
+
+### Added
+
+- **macOS app** (`macos/`): a SwiftUI front end — interface picker, device table, detail pane with "open web UI" /
+  "copy RTSP URL", and a change-network sheet that shows the helper's progress and verdict. It bundles the same
+  `ipcprobe` binary the CLI ships and drives it with `--json`; it has no network code of its own. Shipped as
+  `ipcprobe_<version>_macOS.dmg` on each release, ad-hoc signed (not notarized — right-click › Open the first time).
+  Verified on the live fleet: the Local Network permission is attributed to the app and flows to the bundled helper.
+- `ipcprobe interfaces [--json]` — list the interfaces `--iface` would accept.
+
+### Changed
+
+- `set` reads the password silently when stdin is not a terminal (no prompt, no `stty`, no warning), so a wrapper
+  can pipe it in without it ever appearing on a command line.
+
 ## [0.2.0] — 2026-09-14
 
 ### Added
@@ -84,6 +100,7 @@ back, and a camera moved to 10.0.0.x and recovered while the host stayed on 192.
   sniffing the camera VLAN can read it. This is a property of the camera firmware, not of this tool — segregate
   the camera VLAN. ipcprobe never stores or logs passwords.
 
+[0.3.0]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.3.0
 [0.2.0]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.2.0
 [0.1.1]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.1.1
 [0.1.0]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.1.0
