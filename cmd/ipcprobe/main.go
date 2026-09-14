@@ -33,6 +33,8 @@ func run(args []string) int {
 		return cmdShow(args[1:])
 	case "set":
 		return cmdSet(args[1:])
+	case "interfaces":
+		return cmdInterfaces(args[1:])
 	case "-h", "--help", "help":
 		usage()
 		return 0
@@ -53,7 +55,11 @@ func usage() {
   ipcprobe show --mac <mac> [--iface en0] [--timeout 5] [--json]
   ipcprobe set  --mac <mac> --ip <ip> --mask <mask> --gw <gw>
                 [--dns1 <ip>] [--dns2 <ip>] [--iface en0]
-                [--password <pw>] [--force] [--timeout 3] [--confirm-timeout 8] [--dump]
+                [--password <pw>] [--force] [--timeout 3] [--confirm-timeout 15] [--dump]
+  ipcprobe interfaces [--json]
+
+The password for set is read from stdin when not given with --password: prompted without echo on a terminal,
+read silently from a pipe otherwise.
 `)
 }
 
@@ -313,7 +319,7 @@ func cmdSet(args []string) int {
 		macText, ip, mask, gw, dns1, dns2, ifaceNames(ifaces))
 
 	// Confirm: an ack (receipt) then a re-announcement at the new IP.
-	deadline := time.Now().Add(f.dur("confirm-timeout", 8))
+	deadline := time.Now().Add(f.dur("confirm-timeout", 15))
 	acked := false
 	for time.Now().Before(deadline) {
 		_ = conn.Probe()
@@ -337,11 +343,53 @@ func cmdSet(args []string) int {
 	}
 	hint := " — no ack from the camera: command probably never reached it (interface / VLAN?)"
 	if acked {
-		hint = " — the camera received the command but did not apply it: most likely a wrong admin password"
+		hint = " — the camera received the command but has not re-announced at the new address yet: either the admin password was wrong, or it is slow to come back (a subnet change can take longer) — run `ipcprobe list` to check"
 	}
 	fmt.Fprintf(os.Stderr, "NOT confirmed: %s did not announce at %s within %s%s\n",
-		macText, ip, f.dur("confirm-timeout", 8), hint)
+		macText, ip, f.dur("confirm-timeout", 15), hint)
 	return 2
+}
+
+// cmdInterfaces lists the interfaces ipcprobe would use — the same set `--iface` accepts. The JSON form is what
+// the macOS app's interface picker consumes, so it never has to reimplement the selection rules.
+func cmdInterfaces(args []string) int {
+	f, err := parseFlags(args, map[string]bool{"json": true})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return 2
+	}
+	ifaces, err := discovery.Interfaces()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return 1
+	}
+	if f.has("json") {
+		type row struct {
+			Name string `json:"name"`
+			IP   string `json:"ip"`
+			Net  string `json:"net"`
+		}
+		rows := make([]row, 0, len(ifaces))
+		for _, i := range ifaces {
+			rows = append(rows, row{i.Name, i.IP.String(), i.Net.String()})
+		}
+		printJSON(rows)
+		return 0
+	}
+	if len(ifaces) == 0 {
+		fmt.Fprintln(os.Stderr, "no usable IPv4 interface found")
+		return 1
+	}
+	w := 0
+	for _, i := range ifaces {
+		if len(i.Name) > w {
+			w = len(i.Name)
+		}
+	}
+	for _, i := range ifaces {
+		fmt.Printf("%-*s  %-15s  %s\n", w, i.Name, i.IP, i.Net)
+	}
+	return 0
 }
 
 // --- rendering / parsing helpers ---
