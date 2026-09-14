@@ -13,8 +13,6 @@
 # and lets it launch, but Gatekeeper still flags a download as unidentified. See macos/README.md.
 set -euo pipefail
 
-cd "$(dirname "$0")"
-ROOT="$(cd .. && pwd)"
 VERSION=""
 HELPER=""
 MAKE_DMG=1
@@ -26,6 +24,14 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown option $1" >&2; exit 2 ;;
   esac
 done
+# --helper is relative to where the script was invoked; resolve it before we cd into macos/.
+if [[ -n "$HELPER" ]]; then
+  [[ -f "$HELPER" ]] || { echo "--helper: $HELPER not found" >&2; exit 2; }
+  HELPER="$(cd "$(dirname "$HELPER")" && pwd)/$(basename "$HELPER")"
+fi
+
+cd "$(dirname "$0")"
+ROOT="$(cd .. && pwd)"
 if [[ -z "$VERSION" ]]; then
   VERSION="$(git -C "$ROOT" describe --tags --always 2>/dev/null | sed 's/^v//' || true)"
   VERSION="${VERSION:-dev}"

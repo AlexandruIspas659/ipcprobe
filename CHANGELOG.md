@@ -2,6 +2,16 @@
 
 All notable changes to ipcprobe. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.1] — 2026-09-14
+
+Release-tooling fix only; the CLI binaries are identical to 0.3.0.
+
+### Fixed
+
+- The `macos-app` release job failed before building anything: `build-app.sh` changes into `macos/` before using
+  `--helper`, so the relative path the workflow passed no longer resolved. The script now resolves `--helper` to
+  an absolute path first. The 0.3.0 release therefore has no `.dmg`; this one does.
+
 ## [0.3.0] — 2026-09-14
 
 ### Added
@@ -100,6 +110,7 @@ back, and a camera moved to 10.0.0.x and recovered while the host stayed on 192.
   sniffing the camera VLAN can read it. This is a property of the camera firmware, not of this tool — segregate
   the camera VLAN. ipcprobe never stores or logs passwords.
 
+[0.3.1]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.3.1
 [0.3.0]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.3.0
 [0.2.0]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.2.0
 [0.1.1]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.1.1

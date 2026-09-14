@@ -26,5 +26,5 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
-      - run: macos/build-app.sh --no-dmg
+      - run: bash macos/build-app.sh --no-dmg
       - run: ls -l macos/dist/ipcprobe.app/Contents/MacOS

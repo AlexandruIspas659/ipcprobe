@@ -45,6 +45,6 @@ jobs:
           tar -xzf helper/ipcprobe_darwin_all.tar.gz -C helper
           lipo -info helper/ipcprobe
       - name: build the app and dmg
-        run: macos/build-app.sh --version "${GITHUB_REF_NAME#v}" --helper helper/ipcprobe
+        run: bash macos/build-app.sh --version "${GITHUB_REF_NAME#v}" --helper "$PWD/helper/ipcprobe"
       - name: upload the dmg to the release
         run: gh release upload "$GITHUB_REF_NAME" macos/dist/ipcprobe_*_macOS.dmg --clobber
