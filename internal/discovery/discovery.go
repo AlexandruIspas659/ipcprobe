@@ -28,6 +28,14 @@ type Iface struct {
 
 func (i Iface) String() string { return fmt.Sprintf("%s (%s)", i.Name, i.IP) }
 
+// NetInterface returns the OS interface behind an Iface (for callers outside this package, e.g. fakecam).
+func NetInterface(i Iface) (*net.Interface, error) {
+	if i.iface == nil {
+		return nil, fmt.Errorf("interface %q has no OS handle", i.Name)
+	}
+	return i.iface, nil
+}
+
 // Interfaces returns every up, non-loopback interface that has an IPv4 address.
 func Interfaces() ([]Iface, error) {
 	ifs, err := net.Interfaces()
@@ -61,6 +69,27 @@ func Interfaces() ([]Iface, error) {
 	return out, nil
 }
 
+// whyUnusable explains why a named interface that exists was excluded by Interfaces(), or "" if it doesn't exist.
+// The common case is a VPN tunnel (utun*, wg*, tun*): point-to-point, no multicast — and MHED is link-layer
+// multicast, so it cannot cross one. The tool has to run on a host that sits on the camera's own segment.
+func whyUnusable(name string) string {
+	in, err := net.InterfaceByName(name)
+	if err != nil {
+		return ""
+	}
+	switch {
+	case in.Flags&net.FlagUp == 0:
+		return "is down"
+	case in.Flags&net.FlagLoopback != 0:
+		return "is the loopback interface"
+	case in.Flags&net.FlagMulticast == 0 || in.Flags&net.FlagPointToPoint != 0:
+		return "is a point-to-point/VPN interface without multicast — the camera protocol is link-layer multicast " +
+			"and cannot cross a tunnel; run ipcprobe on a host that is on the cameras' own network segment " +
+			"(e.g. over SSH on the site's gateway)"
+	}
+	return "has no IPv4 address"
+}
+
 // Choose resolves which interfaces to use. ifaceArg restricts to one interface by name or IPv4 address; otherwise,
 // if any prefer address falls inside an interface's subnet, those interfaces are used; else all of them.
 func Choose(ifaceArg string, prefer ...netip.Addr) ([]Iface, error) {
@@ -87,6 +116,9 @@ func Choose(ifaceArg string, prefer ...netip.Addr) ([]Iface, error) {
 			}
 		}
 		if len(sel) == 0 {
+			if why := whyUnusable(ifaceArg); why != "" {
+				return nil, fmt.Errorf("interface %q %s", ifaceArg, why)
+			}
 			var names []string
 			for _, i := range all {
 				names = append(names, i.Name)
