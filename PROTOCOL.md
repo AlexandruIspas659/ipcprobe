@@ -100,5 +100,4 @@ command received but not applied → almost always a wrong admin password.
 
 `testdata/vectors.json` holds sanitized, language-neutral vectors (synthetic MACs/serials/names, no passwords, all
 non-documented bytes zeroed). Any implementation must reproduce each `expect` from the hex and rebuild the
-set-network vector from `decodes_to`. `reference/check_vectors.py` is the runnable check; the Go port must pass the
-same file.
+set-network vector from `decodes_to`. `go test ./internal/mhed/` is the runnable check.

@@ -13,12 +13,10 @@ reason you need a tool like this.
 ## Status
 
 - **Protocol:** fully documented in [PROTOCOL.md](PROTOCOL.md), verified byte-for-byte against real captures.
-- **Reference implementation (Python, stdlib-only):** complete and tested on real hardware — `list`, `show`, `set`.
-  Lives in [`reference/`](reference/). This is the source of truth the Go port is checked against.
-- **Go port:** implemented and passing the same `testdata/vectors.json` contract; standard-library only (no external
-  modules, builds offline). Verified on a real camera LAN (2026-09-10): discovery of a 6-device fleet, live IP flip, and a camera on a
-  foreign subnet — identical results to the Python reference.
-  See [`cmd/ipcprobe/`](cmd/ipcprobe/) and [`internal/`](internal/).
+- **Implementation:** Go, standard library only (no external modules, builds offline). Conformance is pinned by
+  `testdata/vectors.json`; `go test` also runs an end-to-end exchange against a software camera over real multicast
+  sockets. Verified on a live fleet of five TVT/DVC cameras and an NVR: discovery, a live IP change, and rescuing a
+  camera on a foreign subnet. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Install
 
@@ -28,7 +26,7 @@ reason you need a tool like this.
 brew install AlexandruIspas659/tap/ipcprobe
 ```
 
-Homebrew strips the Gatekeeper quarantine flag, so there is no "unidentified developer" dance.
+Installed through Homebrew there is no Gatekeeper "unidentified developer" prompt.
 
 ### Prebuilt binaries
 
@@ -40,16 +38,6 @@ Apple Silicon + Intel), Linux (amd64, arm64) and Windows (amd64). Download, unpa
 ```
 go build -o ipcprobe ./cmd/ipcprobe   # standard library only; no network needed
 ```
-
-### Reference (works today, needs Python 3.9+)
-
-```
-git clone https://github.com/AlexandruIspas659/ipcprobe
-cd ipcprobe/reference
-python3 ipcprobe.py list
-```
-
-No dependencies — Python standard library only.
 
 ## Usage
 
@@ -81,12 +69,24 @@ never stores or logs passwords.
 
 ```
 PROTOCOL.md            the wire protocol (the real deliverable)
-reference/             Python reference implementation + tests + a loopback fake camera
-testdata/vectors.json  sanitized, language-neutral test vectors (the cross-language contract)
-cmd/ipcprobe/          Go CLI entry point (to be written)
-internal/mhed/         Go: packet build/parse (to be written)
-internal/discovery/    Go: sockets, interface selection (to be written)
+docs/ARCHITECTURE.md   how the code works, layer by layer
+docs/RELEASING.md      how a tag becomes binaries, a GitHub release and a Homebrew entry
+cmd/ipcprobe/          the CLI
+cmd/fakecam/           a software camera for testing without hardware (dev tool, not released)
+cmd/mhedpcap/          list / decode / diff MHED frames in a Wireshark capture (dev tool, not released)
+internal/mhed/         the protocol: packet build/parse, no I/O
+internal/discovery/    interfaces, multicast sockets, the receive loop (+ end-to-end test)
+internal/fakecam/      the device side of the protocol, used by cmd/fakecam and the tests
+testdata/vectors.json  sanitized conformance vectors — the contract any implementation must pass
 .goreleaser.yaml       multi-platform release build
+```
+
+## Development
+
+```
+go test ./...                              # unit + vectors + end-to-end (needs a multicast-capable interface)
+go run ./cmd/fakecam --iface en0           # software camera; then `ipcprobe list` / `set` in another terminal
+go run ./cmd/mhedpcap list capture.pcapng  # inspect a Wireshark capture; `show`/`diff --frame N` for one frame
 ```
 
 ## License

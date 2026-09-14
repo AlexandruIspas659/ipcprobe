@@ -2,6 +2,45 @@
 
 All notable changes to ipcprobe. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- `cmd/fakecam` and `internal/fakecam`: a software camera that speaks the device side of the protocol, for
+  testing without hardware. `go test` now includes an end-to-end discover → set → ack → re-announce exchange over
+  real multicast sockets.
+- `cmd/mhedpcap`: list, decode and diff MHED frames in a Wireshark capture (`.pcapng` or `.pcap`).
+- `mhed.BuildAnnounce` / `mhed.BuildSetAck`, the inverses of the parsers; the announce vectors now round-trip
+  byte for byte.
+- `docs/ARCHITECTURE.md` and `docs/RELEASING.md`.
+
+### Changed
+
+- `--iface` on a VPN / point-to-point interface now explains that the protocol is link-layer multicast and cannot
+  cross a tunnel, instead of reporting "no IPv4 address".
+- Default `--confirm-timeout` raised from 8 s to 15 s; the not-confirmed message no longer asserts a wrong password
+  when the camera may simply be slow to re-announce.
+
+### Removed
+
+- The Python reference implementation (`reference/`). Its role — the thing the Go port was checked against — is
+  over: `testdata/vectors.json` is the conformance contract and the Go tests enforce it. Its two useful tools
+  (fake camera, capture diff) were ported to Go, above.
+
+### Fixed
+
+- `testdata/vectors.json`: the set-ack vector was 240 bytes; the real ack is 140.
+
+## [0.1.1] — 2026-09-10
+
+Release-tooling fix only; the binaries are identical to 0.1.0.
+
+### Fixed
+
+- The Homebrew formula is now published to `AlexandruIspas659/homebrew-tap` on release (the 0.1.0 workflow was
+  missing the tap token, so `brew install AlexandruIspas659/tap/ipcprobe` did not work yet).
+- Removed a stray archive that had been committed to the repository.
+
 ## [0.1.0] — 2026-09-10
 
 First public release.
@@ -42,4 +81,5 @@ back, and a camera moved to 10.0.0.x and recovered while the host stayed on 192.
   sniffing the camera VLAN can read it. This is a property of the camera firmware, not of this tool — segregate
   the camera VLAN. ipcprobe never stores or logs passwords.
 
+[0.1.1]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.1.1
 [0.1.0]: https://github.com/AlexandruIspas659/ipcprobe/releases/tag/v0.1.0

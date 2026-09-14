@@ -1,22 +1,24 @@
-.PHONY: build test vectors snapshot clean reference-test
+.PHONY: build test test-short fakecam mhedpcap snapshot clean
 
-# Go targets (once cmd/ipcprobe exists)
 build:
 	go build -o ipcprobe ./cmd/ipcprobe
 
 test:
 	go test ./...
 
-# Local multi-platform build without publishing (needs goreleaser installed)
+# unit + vectors only (skips the end-to-end multicast test)
+test-short:
+	go test -short ./...
+
+fakecam:
+	go build -o fakecam ./cmd/fakecam
+
+mhedpcap:
+	go build -o mhedpcap ./cmd/mhedpcap
+
+# local multi-platform build without publishing (needs goreleaser installed)
 snapshot:
 	goreleaser release --snapshot --clean
 
-# Reference implementation checks (work today, no Go needed)
-reference-test:
-	cd reference && python3 test_ipcprobe.py
-
-vectors:
-	cd reference && python3 check_vectors.py
-
 clean:
-	rm -rf dist ipcprobe ipcprobe-*
+	rm -rf dist ipcprobe ipcprobe-* fakecam mhedpcap

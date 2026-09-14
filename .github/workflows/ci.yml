@@ -5,18 +5,6 @@ on:
   pull_request:
 
 jobs:
-  reference:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.9"
-      - name: reference unit tests
-        run: cd reference && python3 test_ipcprobe.py
-      - name: protocol vectors
-        run: cd reference && python3 check_vectors.py
-
   go:
     runs-on: ubuntu-latest
     steps:
@@ -24,11 +12,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
-      # Skips cleanly until Go sources exist.
-      - name: go build
-        run: |
-          if ls cmd/ipcprobe/*.go >/dev/null 2>&1; then
-            go build ./... && go test ./...
-          else
-            echo "no Go sources yet — skipping"
-          fi
+      - run: go vet ./...
+      - run: go build ./...
+      # Includes the end-to-end test against the in-process fake camera; it self-skips where the runner has
+      # no multicast-capable interface.
+      - run: go test ./...

@@ -1,7 +1,7 @@
 # testdata
 
-`vectors.json` — sanitized, language-neutral protocol test vectors. Every implementation (the Python reference, the
-Go port) must pass these. Run the Python check with `python3 reference/check_vectors.py`.
+`vectors.json` — sanitized, language-neutral protocol test vectors. Every implementation must pass these; `go test ./internal/mhed/` is the
+runnable check (`TestVectors`, plus round-trip tests that rebuild each vector from its decoded form).
 
 Each vector has a `cmd`, the packet as `hex`, and an expectation:
 - cmd 2 (announce): `expect` = the parsed `Device` fields.
