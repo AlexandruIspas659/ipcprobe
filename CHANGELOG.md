@@ -2,6 +2,22 @@
 
 All notable changes to ipcprobe. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.2] — 2026-09-22
+
+macOS app only; the CLI is unchanged.
+
+### Added
+
+- The app has an icon.
+- Sortable device table: click a column header to sort, again to reverse. IP and Gateway sort numerically (so
+  `.9` comes before `.134`), and the chosen column survives a rescan.
+
+### Fixed
+
+- The change-network sheet no longer clips its fields; the defaults (gateway, `8.8.8.8`) show as placeholder text.
+- The status bar shows the app's own version instead of the bundled helper's, which could look stale.
+- The interface picker's toolbar highlight now hugs the control instead of a wider box.
+
 ## [0.3.1] — 2026-09-14
 
 Release-tooling fix only; the CLI binaries are identical to 0.3.0.
