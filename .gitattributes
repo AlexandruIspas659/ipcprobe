@@ -1,0 +1,3 @@
+# The icon generator is build tooling, not shipped code — keep it out of GitHub's language stats
+# (the repo reads as Go + Swift, not "part Python").
+macos/icon/** linguist-vendored
