@@ -10,6 +10,7 @@ final class AppModel: ObservableObject {
     @Published var timeout: Double = 5
 
     @Published var devices: [Device] = []
+    @Published var sortOrder: [KeyPathComparator<Device>] = [KeyPathComparator(\.ipValue, order: .forward)]
     @Published var selection: String? = nil
     @Published var isScanning = false
     @Published var lastScan: Date? = nil
@@ -17,6 +18,18 @@ final class AppModel: ObservableObject {
     @Published var helperVersion = "…"
 
     var selectedDevice: Device? { devices.first { $0.mac == selection } }
+
+    /// The app's own version, from Info.plist ("dev" when run outside a bundle with `swift run`).
+    var appVersion: String {
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "dev"
+    }
+
+    /// What the status bar shows. App and helper come from the same release, so normally one number; the helper is
+    /// named only when it differs, which happens in development builds.
+    var versionLabel: String {
+        if helperVersion == "…" { return "v\(appVersion)" }
+        return helperVersion == appVersion ? "v\(appVersion)" : "v\(appVersion) · helper \(helperVersion)"
+    }
 
     func startup() async {
         helperVersion = await ProbeRunner.version()
@@ -44,7 +57,7 @@ final class AppModel: ObservableObject {
         if let i = selectedInterface { args += ["--iface", i] }
         do {
             let found = try await ProbeRunner.runJSON([Device].self, args)
-            devices = found.sorted { ipKey($0.ip).lexicographicallyPrecedes(ipKey($1.ip)) }
+            devices = found.sorted(using: sortOrder)   // keep whatever column the user is sorted by across rescans
             lastScan = Date()
             if let sel = selection, !devices.contains(where: { $0.mac == sel }) { selection = nil }
         } catch {
@@ -74,6 +87,4 @@ final class AppModel: ObservableObject {
             return 1
         }
     }
-
-    private func ipKey(_ s: String) -> [Int] { s.split(separator: ".").map { Int($0) ?? 0 } }
 }

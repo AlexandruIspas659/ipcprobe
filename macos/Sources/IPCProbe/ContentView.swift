@@ -22,16 +22,20 @@ struct ContentView: View {
     }
 
     private var deviceTable: some View {
-        Table(model.devices, selection: $model.selection) {
-            TableColumn("IP", value: \.ip).width(min: 110, ideal: 120)
+        // Columns declared with `value:` are sortable: clicking a header updates model.sortOrder, and the row
+        // below re-sorts the list. IP and Gateway sort by their numeric value (so .9 comes before .134) while
+        // still showing the dotted string.
+        Table(model.devices, selection: $model.selection, sortOrder: $model.sortOrder) {
+            TableColumn("IP", value: \.ipValue) { Text($0.ip) }.width(min: 110, ideal: 120)
             TableColumn("MAC", value: \.mac).width(min: 130, ideal: 140)
             TableColumn("Name", value: \.name).width(min: 100)
             TableColumn("Model", value: \.model).width(min: 110)
             TableColumn("Firmware", value: \.firmware).width(min: 90)
             TableColumn("Mask", value: \.mask).width(min: 110)
-            TableColumn("Gateway", value: \.gateway).width(min: 110)
+            TableColumn("Gateway", value: \.gatewayValue) { Text($0.gateway) }.width(min: 110)
         }
         .font(.system(.body, design: .monospaced))
+        .onChange(of: model.sortOrder) { newOrder in model.devices.sort(using: newOrder) }
         .overlay {
             if model.devices.isEmpty && !model.isScanning {
                 emptyState
@@ -54,13 +58,15 @@ struct ContentView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .principal) {
+            // No explicit frame: the toolbar draws its hover capsule around the item's frame, and a frame wider
+            // than the pop-up button itself left a highlighted area with a smaller control inside it.
             Picker("Interface", selection: $model.selectedInterface) {
                 Text("All interfaces").tag(String?.none)
                 ForEach(model.interfaces) { i in
                     Text(i.label).tag(String?.some(i.ip))
                 }
             }
-            .frame(minWidth: 220)
+            .fixedSize()
             .help("Which network interface to listen and send on. Only interfaces with an IPv4 address and multicast are listed; VPN tunnels never are.")
 
             Picker("Listen", selection: $model.timeout) {
@@ -99,7 +105,8 @@ struct ContentView: View {
                 Text("Ready")
             }
             Spacer()
-            Text("helper \(model.helperVersion)").foregroundStyle(.secondary)
+            Text(model.versionLabel).foregroundStyle(.secondary)
+                .help("App version; the bundled ipcprobe helper is shown too when it differs (development builds).")
         }
         .font(.callout)
         .padding(.horizontal, 12)

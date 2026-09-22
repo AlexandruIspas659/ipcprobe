@@ -25,17 +25,25 @@ struct SetNetworkSheet: View {
             Text("\(device.mac) · currently \(device.ip)").foregroundStyle(.secondary)
                 .font(.system(.callout, design: .monospaced))
 
-            Form {
-                TextField("IP address", text: $ip)
-                TextField("Subnet mask", text: $mask)
-                TextField("Gateway", text: $gateway)
-                TextField("DNS 1 (optional, default: gateway)", text: $dns1)
-                TextField("DNS 2 (optional, default: 8.8.8.8)", text: $dns2)
-                SecureField("Camera admin password", text: $password)
-                Toggle("Send even if the camera is not currently visible (--force)", isOn: $force)
+            // A plain two-column grid rather than Form: Form's label column plus long labels made the content
+            // wider than the sheet, and SwiftUI then cropped both edges.
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                fieldRow("IP address", $ip)
+                fieldRow("Subnet mask", $mask)
+                fieldRow("Gateway", $gateway)
+                fieldRow("DNS 1", $dns1, prompt: "optional — defaults to the gateway")
+                fieldRow("DNS 2", $dns2, prompt: "optional — defaults to 8.8.8.8")
+                GridRow {
+                    Text("Admin password").gridColumnAlignment(.trailing)
+                    SecureField("", text: $password, prompt: Text("the camera's admin password"))
+                        .font(.system(.body, design: .monospaced))
+                }
+                GridRow {
+                    Color.clear.frame(width: 0, height: 0)
+                    Toggle("Send even if the camera is not currently visible (--force)", isOn: $force)
+                }
             }
             .disabled(phase != .editing)
-            .font(.system(.body, design: .monospaced))
             .textFieldStyle(.roundedBorder)
             .onSubmit(apply)
 
@@ -87,6 +95,15 @@ struct SetNetworkSheet: View {
             ip = device.ip; mask = device.mask; gateway = device.gateway
             dns1 = device.dns1 == "0.0.0.0" ? "" : device.dns1
             dns2 = device.dns2 == "0.0.0.0" ? "" : device.dns2
+        }
+    }
+
+    private func fieldRow(_ label: String, _ text: Binding<String>, prompt: String? = nil) -> some View {
+        GridRow {
+            Text(label).gridColumnAlignment(.trailing)
+            TextField("", text: text, prompt: prompt.map { Text($0) })
+                .font(.system(.body, design: .monospaced))
+                .autocorrectionDisabled()
         }
     }
 

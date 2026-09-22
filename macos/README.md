@@ -15,6 +15,7 @@ Sources/IPCProbe/
   Model/AppModel.swift     app state: interfaces, devices, scan, set
 Resources/Info.plist       bundle metadata; NSLocalNetworkUsageDescription is what macOS shows in its prompt
 build-app.sh               assembles the .app (helper + Swift binary), ad-hoc signs it, wraps it in a .dmg
+icon/                      the app icon: draw.py renders it, build_icns.py assembles AppIcon.icns
 ```
 
 ## How it talks to the helper

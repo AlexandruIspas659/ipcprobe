@@ -21,6 +21,22 @@ struct Device: Codable, Identifiable, Hashable {
     /// A camera is identified by its MAC: the IP is the thing we change.
     var id: String { mac }
 
+    /// A dotted IPv4 as a number, so sorting orders 192.168.1.9 before 192.168.1.134 (a string sort would not).
+    /// A malformed address sorts as 0.
+    static func ipNumber(_ s: String) -> UInt32 {
+        let parts = s.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return 0 }
+        var n: UInt32 = 0
+        for p in parts {
+            guard let b = UInt8(p) else { return 0 }
+            n = (n << 8) | UInt32(b)
+        }
+        return n
+    }
+
+    var ipValue: UInt32 { Device.ipNumber(ip) }
+    var gatewayValue: UInt32 { Device.ipNumber(gateway) }
+
     var webURL: URL? {
         guard http != 0 else { return nil }
         return URL(string: "http://\(ip)\(http == 80 ? "" : ":\(http)")/")
