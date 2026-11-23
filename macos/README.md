@@ -17,6 +17,7 @@ Sources/IPCProbe/
 Resources/Info.plist       bundle metadata; NSLocalNetworkUsageDescription is what macOS shows in its prompt
   Model/CameraLists.swift  list logic with no UI in it (ordering, filtering, shared addresses) — what the unit tests cover
   Model/Export.swift       the camera list and a batch's outcome as CSV / tab-separated text
+  Snapshots.swift          development aid: `IPCProbe --snapshots <dir>` renders the screens to PNG (see below)
 Tests/IPCProbeTests/       unit tests for the app's own logic; nothing here touches the network
 test.sh                    runs them (`swift test`, plus the flags the Command Line Tools need)
 build-app.sh               assembles the .app (helper + Swift binary), ad-hoc signs it, wraps it in a .dmg
@@ -42,7 +43,8 @@ cameras' interface in the toolbar first.
 
 Select several rows (⌘-click, ⇧-click) to get the batch sheet. Cameras are passed in the order the table shows
 them, and the sheet lets you change that: its Order menu sorts by MAC, name or current address or reverses the
-list, and rows can be dragged. The order matters because consecutive addresses are handed out top to bottom and the
+list, and rows can be dragged — or selected (click, then ↑ / ↓) and moved with the two arrow buttons, ⌥↑ and ⌥↓.
+The order matters because consecutive addresses are handed out top to bottom and the
 first camera is the one tried on its own. Apply is only offered for a preview of exactly what the form and the
 order say; changing either means previewing again.
 
@@ -68,6 +70,18 @@ IPCPROBE_BIN=$(which ipcprobe) swift run IPCProbe   # or `go build -o /tmp/ipcpr
 Outside a bundle the helper is located through `IPCPROBE_BIN`, then `PATH`. Inside the bundle it is named
 `ipcprobe-cli` because the app's own executable is `IPCProbe`, and on the default (case-insensitive) APFS those two
 names would collide.
+
+## Looking at the screens without clicking through them
+
+```
+make screens            # → macos/.build/screens/*.png
+```
+
+`IPCProbe --snapshots <dir>` renders the main window and the sheets, in their interesting states (a previewed
+batch with a warning and a refusal, a stale preview, a finished run, thirty cameras, a rescue …), into PNG files
+using made-up cameras, then exits. No window appears and nothing touches the network. It is how a change to a view
+gets looked at — also by tools that cannot see the screen. The window's toolbar is not part of the pictures. When
+you add a screen or a state worth checking, add it to `Snapshots.swift`.
 
 ## Local Network permission
 

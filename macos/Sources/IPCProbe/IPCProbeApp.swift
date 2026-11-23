@@ -4,6 +4,10 @@ import SwiftUI
 struct IPCProbeApp: App {
     @StateObject private var model = AppModel()
 
+    init() {
+        Snapshots.runIfAsked()      // `--snapshots <dir>`: render the screens to PNG and exit (development aid)
+    }
+
     var body: some Scene {
         WindowGroup("ipcprobe") {
             ContentView()

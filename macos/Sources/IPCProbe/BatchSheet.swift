@@ -15,6 +15,18 @@ struct BatchSheet: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
 
+    /// A state to start in, for `Snapshots`: the sheet as it looks with a plan previewed, or after a run.
+    struct Snapshot {
+        var items: [BatchItem]
+        var previewed: Bool
+        var done: Int32? = nil
+        /// Deliver the items a moment after the sheet appears, the way a real preview does.
+        var late = false
+        /// Pick this row (0-based) and move it down one place, as ⌥↓ would.
+        var moveRow: Int? = nil
+    }
+    var snapshot: Snapshot? = nil
+
     @State private var assignIPs = false
     @State private var startIP = ""
     @State private var step = "1"
@@ -67,6 +79,21 @@ struct BatchSheet: View {
         .frame(width: 800)
         .onAppear {
             ordered = devices
+            if let snap = snapshot {
+                assignIPs = true
+                startIP = "192.168.1.100"
+                let deliver = {
+                    if let r = snap.moveRow, devices.indices.contains(r) {
+                        selectedRow = devices[r].mac
+                        moveSelected(1)
+                    }
+                    items = snap.items
+                    previewed = snap.previewed ? signature : ["stale"]
+                    if let status = snap.done { phase = .done(status) }
+                }
+                if snap.late { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: deliver) } else { deliver() }
+                return
+            }
             // Cameras fresh out of the box all sit on one address: numbering them is almost certainly the job.
             let addresses = devices.map(\.ip)
             assignIPs = Set(addresses).count < addresses.count
