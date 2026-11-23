@@ -29,6 +29,10 @@ struct BatchSheet: View {
     /// rows change it. It matters twice: consecutive addresses go top to bottom, and the first camera is the one
     /// tried on its own.
     @State private var ordered: [Device] = []
+    /// The row picked in the list, by MAC: ↑ and ↓ move the pick, ⌥↑ and ⌥↓ move the camera.
+    @State private var selectedRow: String? = nil
+    /// Bumped whenever the picked camera is moved, so the list can keep it in view.
+    @State private var moves = 0
 
     private enum Phase: Equatable { case editing, previewing, running, done(Int32) }
     @State private var phase: Phase = .editing
@@ -149,12 +153,31 @@ struct BatchSheet: View {
                 Button("By Current Address") { ordered = ordered.sorted(by: .address) }
             }
             .fixedSize()
-            Text(assignIPs || mode == .rescue ? "Addresses are handed out top to bottom. Drag rows to reorder."
-                           : "The first camera is the one tried on its own. Drag rows to reorder.")
+            // The keyboard's way of dragging: pick a row (click it, then ↑ / ↓), and move it with these.
+            Button { moveSelected(-1) } label: { Image(systemName: "chevron.up") }
+                .keyboardShortcut(.upArrow, modifiers: .option)
+                .disabled(!canMoveSelected(-1))
+                .help("Move the selected camera up (⌥↑)")
+            Button { moveSelected(1) } label: { Image(systemName: "chevron.down") }
+                .keyboardShortcut(.downArrow, modifiers: .option)
+                .disabled(!canMoveSelected(1))
+                .help("Move the selected camera down (⌥↓)")
+            Text(assignIPs || mode == .rescue ? "Addresses are handed out top to bottom. Drag rows, or select one and use the arrows."
+                           : "The first camera is the one tried on its own. Drag rows, or select one and use the arrows.")
                 .font(.callout).foregroundStyle(.secondary)
             Spacer()
         }
         .disabled(phase != .editing)
+    }
+
+    private func canMoveSelected(_ delta: Int) -> Bool {
+        phase == .editing && ordered.moving(selectedRow, by: delta) != nil
+    }
+
+    private func moveSelected(_ delta: Int) {
+        guard phase == .editing, let moved = ordered.moving(selectedRow, by: delta) else { return }
+        ordered = moved
+        moves += 1
     }
 
     private enum Column {
@@ -173,26 +196,37 @@ struct BatchSheet: View {
             .font(.caption).foregroundStyle(.secondary)
             .padding(.horizontal, 16).padding(.vertical, 5)
             Divider()
-            List {
-                ForEach(Array(ordered.enumerated()), id: \.element.mac) { index, d in
-                    row(index + 1, d, itemsByMAC[d.mac])
+            ScrollViewReader { proxy in
+                List(selection: $selectedRow) {
+                    ForEach(Array(ordered.enumerated()), id: \.element.mac) { index, d in
+                        row(index + 1, d, shownItems[d.mac])
+                            .tag(d.mac)
+                            .listRowSeparator(.hidden)
+                    }
+                    .onMove { from, to in ordered.move(fromOffsets: from, toOffset: to) }
                 }
-                .onMove { from, to in ordered.move(fromOffsets: from, toOffset: to) }
+                .listStyle(.plain)
+                .moveDisabled(phase != .editing)
+                .onChange(of: moves) { _ in
+                    if let mac = selectedRow { proxy.scrollTo(mac) }
+                }
             }
-            .listStyle(.plain)
-            .moveDisabled(phase != .editing)
-            // A preview that no longer matches the form or the order is shown faded until it is refreshed.
-            .opacity(previewIsCurrent || items.isEmpty || phase != .editing ? 1 : 0.45)
         }
         .font(.system(.callout, design: .monospaced))
-        .frame(height: 220)
+        .frame(height: 300)
         .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
-    private var itemsByMAC: [String: BatchItem] {
-        Dictionary(items.map { ($0.mac, $0) }, uniquingKeysWith: { first, _ in first })
+    /// The plan to show per camera. A preview made for a different order or different fields describes a plan
+    /// that no longer exists, so it is not shown at all — the rows go back to "preview again" — rather than left
+    /// on screen looking current.
+    private var shownItems: [String: BatchItem] {
+        guard previewIsCurrent || phase != .editing else { return [:] }
+        return Dictionary(items.map { ($0.mac, $0) }, uniquingKeysWith: { first, _ in first })
     }
+
+    private var previewIsStale: Bool { phase == .editing && !items.isEmpty && !previewIsCurrent }
 
     private func row(_ number: Int, _ d: Device, _ item: BatchItem?) -> some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -207,18 +241,33 @@ struct BatchSheet: View {
                 } else {
                     Text(d.ip).frame(maxWidth: .infinity, alignment: .leading)
                     Text("").frame(width: Column.other, alignment: .leading)
-                    Text("not previewed").foregroundStyle(.secondary).frame(width: Column.status, alignment: .leading)
+                    Text(previewIsStale ? "preview again" : "not previewed").foregroundStyle(.secondary)
+                        .frame(width: Column.status, alignment: .leading)
                 }
             }
             if let it = item {
-                ForEach(notes(it), id: \.self) { note in
-                    Text(note).font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.leading, Column.number + 10)
+                // What needs reading is not small print: warnings in orange, a refusal in red, each with its sign.
+                ForEach(it.warnings, id: \.self) { warning in
+                    note(warning, "exclamationmark.triangle.fill", .orange)
+                }
+                if let e = it.error {
+                    switch it.status {
+                    case "invalid": note(e, "xmark.octagon.fill", .red)
+                    case "not-confirmed": note(e, "questionmark.circle.fill", .orange)
+                    default: note(e, "info.circle", .secondary)
+                    }
                 }
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private func note(_ text: String, _ systemImage: String, _ color: Color) -> some View {
+        Label(text, systemImage: systemImage)
+            .font(.callout)
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.leading, Column.number + 10)
     }
 
     private func cameraCell(name: String, mac: String) -> some View {
@@ -241,10 +290,6 @@ struct BatchSheet: View {
         return parts.isEmpty ? "—" : parts.joined(separator: "\n")
     }
 
-    private func notes(_ it: BatchItem) -> [String] {
-        it.warnings.map { "Warning: \($0)" } + (it.error.map { [$0] } ?? [])
-    }
-
     @ViewBuilder
     private func statusCell(_ it: BatchItem) -> some View {
         switch it.status {
@@ -252,7 +297,7 @@ struct BatchSheet: View {
             if it.warnings.isEmpty {
                 Label("will change", systemImage: "arrow.right.circle").foregroundStyle(.blue)
             } else {
-                Label("will change, see warning", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Label("will change", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             }
         case "unchanged":
             Label("already set", systemImage: "equal.circle").foregroundStyle(.secondary)
@@ -305,6 +350,9 @@ struct BatchSheet: View {
                 Label("\(confirmed) of \(total) confirmed — see each camera's status.",
                       systemImage: "questionmark.circle.fill").foregroundStyle(.orange)
             }
+        } else if previewIsStale {
+            Label("The order or a field changed since the preview. Preview again to see the new plan.",
+                  systemImage: "arrow.triangle.2.circlepath").foregroundStyle(.orange)
         } else if phase == .editing, previewIsCurrent {
             if count("invalid") > 0 {
                 Label("Nothing can be sent until the cameras marked in red are sorted out.",
@@ -316,7 +364,7 @@ struct BatchSheet: View {
                 let warned = items.filter { $0.status == "planned" && !$0.warnings.isEmpty }.count
                 if warned > 0 {
                     // Typically an address something else on the network already holds: worth reading before Apply.
-                    Label("\(planned) camera\(planned == 1 ? "" : "s") will be changed — \(warned) with a warning, read it first.",
+                    Label("\(planned) camera\(planned == 1 ? "" : "s") will be changed, \(warned) with a warning.",
                           systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 } else {
                     Text("\(planned) camera\(planned == 1 ? "" : "s") will be changed.").foregroundStyle(.secondary)

@@ -16,6 +16,15 @@ extension Array where Element == Device {
         Dictionary(map { ($0.ip, 1) }, uniquingKeysWith: +).filter { $0.value > 1 }
     }
 
+    /// The list with the camera `mac` moved `delta` places (−1 is one up), or nil if there is no such camera or it
+    /// is already at that end. The keyboard's version of dragging a row.
+    func moving(_ mac: String?, by delta: Int) -> [Device]? {
+        guard let i = firstIndex(where: { $0.mac == mac }), indices.contains(i + delta), delta != 0 else { return nil }
+        var out = self
+        out.insert(out.remove(at: i), at: i + delta)
+        return out
+    }
+
     /// The cameras that cannot be reached by IP from this Mac.
     var foreign: [Device] { filter(\.isForeign) }
 

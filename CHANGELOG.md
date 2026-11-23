@@ -13,8 +13,8 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
   same address, tries the first camera alone so a wrong password reaches one camera instead of all of them, and
   reports per camera whether the change was confirmed.
 - macOS app: the device table is multi-select; several selected cameras open a batch sheet with a preview of
-  every camera's old and new configuration before anything is sent. The sheet's Order menu and drag-to-reorder
-  decide which camera gets which address. A new Cameras menu and two toolbar buttons give Select All (⌥⌘A) and
+  every camera's old and new configuration before anything is sent. The sheet's Order menu, drag-to-reorder and
+  ⌥↑ / ⌥↓ on a selected row decide which camera gets which address. A new Cameras menu and two toolbar buttons give Select All (⌥⌘A) and
   Change Network (⌘E).
 - **Rescue.** `list` now points out cameras that sit on another subnet than this computer (and cameras sharing an
   address), `list --json` carries a `foreign` flag, and `ipcprobe apply --rescue` brings such cameras into this

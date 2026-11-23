@@ -92,6 +92,19 @@ func camera(_ mac: String, ip: String = "192.168.1.88", name: String = "DVC") ->
         #expect(cams.sorted(by: .name).map(\.mac) == ["02:00:00:00:00:01", "02:00:00:00:00:02", "02:00:00:00:00:03"])
     }
 
+    @Test func movingOneCameraUpAndDown() {
+        let abc = [camera("02:00:00:00:00:0a"), camera("02:00:00:00:00:0b"), camera("02:00:00:00:00:0c")]
+        let b = "02:00:00:00:00:0b"
+        #expect(abc.moving(b, by: -1)?.map { $0.mac.suffix(1) } == ["b", "a", "c"])
+        #expect(abc.moving(b, by: 1)?.map { $0.mac.suffix(1) } == ["a", "c", "b"])
+        // Already at an end, nothing picked, or an unknown camera: nothing to do.
+        #expect(abc.moving("02:00:00:00:00:0a", by: -1) == nil)
+        #expect(abc.moving("02:00:00:00:00:0c", by: 1) == nil)
+        #expect(abc.moving(nil, by: 1) == nil)
+        #expect(abc.moving("02:00:00:00:00:ff", by: 1) == nil)
+        #expect(abc.moving(b, by: 0) == nil)
+    }
+
     @Test func factoryFreshCamerasFallBackToMACOrder() {
         let fresh = [camera("02:00:00:00:00:0b"), camera("02:00:00:00:00:0a"), camera("02:00:00:00:00:0c")]
         for order in [CameraOrder.mac, .name, .address] {
