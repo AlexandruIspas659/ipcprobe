@@ -60,7 +60,7 @@ func usage() {
                 [--dns1 <ip>] [--dns2 <ip>] [--iface en0]
                 [--password <pw>] [--force] [--timeout 3] [--confirm-timeout 15] [--dump]
   ipcprobe apply (--mac <mac>,<mac>,... | --all | --plan plan.json)
-                [--start-ip <ip> [--step 1]] [--mask <mask>] [--gw <gw>] [--dns1 <ip>] [--dns2 <ip>]
+                [--start-ip <ip> [--step 1] | --rescue] [--mask <mask>] [--gw <gw>] [--dns1 <ip>] [--dns2 <ip>]
                 [--iface en0] [--password <pw>] [--dry-run] [--yes] [--no-canary] [--json]
                 [--timeout 5] [--confirm-timeout 15] [--gap 0.25]
   ipcprobe interfaces [--json]
@@ -70,6 +70,9 @@ current configuration: --start-ip hands out consecutive addresses in the order t
 --gw / --mask / --dns1 / --dns2 alone change those fields in place. --plan takes a JSON array of
 {"mac","ip","mask","gateway","dns1","dns2"} objects (the shape of "list --json"). --dry-run shows what would
 happen and sends nothing.
+
+--rescue brings cameras that sit on a foreign subnet into this computer's own: each gets a free address there, with
+its mask and the gateway the cameras already on it use. With --all it takes every camera that needs it.
 
 The password for set and apply is read from stdin when not given with --password: prompted without echo on a
 terminal, read silently from a pipe otherwise.
@@ -210,6 +213,9 @@ func cmdShow(args []string) int {
 	}
 	if dev.RTSP != 0 {
 		rows = append(rows, [2]string{"rtsp-url", "rtsp://" + dev.IP + portSuffix(dev.RTSP, 554) + "/"})
+	}
+	if dev.Foreign {
+		rows = append(rows, [2]string{"note", "outside this computer's subnet: reachable by this tool, not by IP"})
 	}
 	w := 0
 	for _, r := range rows {
@@ -412,15 +418,46 @@ var baseCols = []struct{ head, key string }{
 }
 var wideExtra = []struct{ head, key string }{{"HTTP", "http"}, {"RTSP", "rtsp"}, {"Build", "build"}}
 
+// deviceNotes says, per MAC, what is worth pointing out about a device's address: that it is outside this
+// computer's subnets (so unreachable by IP), or that other devices announce the same one.
+func deviceNotes(devs []*mhed.Device) map[string]string {
+	sharing := map[string]int{}
+	for _, d := range devs {
+		sharing[d.IP]++
+	}
+	notes := map[string]string{}
+	for _, d := range devs {
+		var n []string
+		if d.Foreign {
+			n = append(n, "other subnet")
+		}
+		if sharing[d.IP] > 1 {
+			n = append(n, fmt.Sprintf("address shared by %d", sharing[d.IP]))
+		}
+		if len(n) > 0 {
+			notes[d.MAC] = strings.Join(n, ", ")
+		}
+	}
+	return notes
+}
+
 func printTable(devs []*mhed.Device, wide bool) {
 	cols := baseCols
 	if wide {
 		cols = append(append([]struct{ head, key string }{}, baseCols...), wideExtra...)
 	}
+	notes := deviceNotes(devs)
+	if len(notes) > 0 { // the column only exists when there is something to say
+		cols = append(append([]struct{ head, key string }{}, cols...), struct{ head, key string }{"Note", "note"})
+	}
 	rows := make([][]string, 0, len(devs))
 	for _, d := range devs {
 		row := make([]string, len(cols))
 		for i, c := range cols {
+			if c.key == "note" {
+				row[i] = notes[d.MAC]
+				continue
+			}
 			row[i] = field(d, c.key)
 		}
 		rows = append(rows, row)
@@ -441,14 +478,14 @@ func printTable(devs []*mhed.Device, wide bool) {
 		head = append(head, pad(c.head, widths[i]))
 		sep = append(sep, strings.Repeat("-", widths[i]))
 	}
-	fmt.Println(strings.Join(head, "  "))
+	fmt.Println(strings.TrimRight(strings.Join(head, "  "), " "))
 	fmt.Println(strings.Join(sep, "  "))
 	for _, r := range rows {
 		cells := make([]string, len(r))
 		for i, v := range r {
 			cells[i] = pad(v, widths[i])
 		}
-		fmt.Println(strings.Join(cells, "  "))
+		fmt.Println(strings.TrimRight(strings.Join(cells, "  "), " "))
 	}
 }
 

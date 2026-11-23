@@ -26,7 +26,7 @@ type applyOutput struct {
 // Exit codes follow `set`: 0 every camera confirmed (or already had the configuration), 1 setup or environment
 // problem, 2 usage error, a plan that cannot be applied, or at least one camera not confirmed.
 func cmdApply(args []string) int {
-	f, err := parseFlags(args, map[string]bool{"all": true, "dry-run": true, "json": true, "yes": true, "no-canary": true})
+	f, err := parseFlags(args, map[string]bool{"all": true, "rescue": true, "dry-run": true, "json": true, "yes": true, "no-canary": true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 2
@@ -81,6 +81,14 @@ func cmdApply(args []string) int {
 		}
 		step = n
 	}
+	rescue := f.has("rescue")
+	if rescue {
+		for _, k := range []string{"start-ip", "plan", "mask"} {
+			if f.has(k) {
+				return fail("--rescue works out the addresses and the mask itself; it cannot be combined with --%s", k)
+			}
+		}
+	}
 	if f.has("ip") {
 		return fail("apply has no --ip; use --start-ip to hand out consecutive addresses, or `set` for one camera")
 	}
@@ -130,12 +138,33 @@ func cmdApply(args []string) int {
 
 	if f.has("all") {
 		for _, d := range discovery.SortedByIP(devs) {
+			if rescue && !d.Foreign { // --all --rescue means every camera that needs rescuing
+				continue
+			}
 			reqs = append(reqs, batch.Request{MAC: d.MAC})
 		}
-		if len(reqs) == 0 {
+		if len(reqs) == 0 && !rescue {
 			fmt.Fprintln(os.Stderr, "error: no devices seen in discovery")
 			return 1
 		}
+	}
+	gatewayAssumed := false
+	if rescue {
+		// "This network" has to be one network: the subnet of the single interface in use.
+		used := conn.Ifaces()
+		if len(used) != 1 {
+			return fail("--rescue brings cameras into this computer's network, and %d interfaces are in use (%s): choose one with --iface",
+				len(used), ifaceNames(used))
+		}
+		macs := make([]string, len(reqs))
+		for i, r := range reqs {
+			macs[i] = r.MAC
+		}
+		in := batch.RescueInput{Subnet: used[0].Net, Host: used[0].IP, Gateway: def.Gateway, DNS1: def.DNS1, DNS2: def.DNS2}
+		if reqs, gatewayAssumed, err = batch.Rescue(devs, macs, in); err != nil {
+			return fail("%v", err)
+		}
+		fmt.Fprintf(os.Stderr, "bringing cameras into %s (%s)\n", used[0].Net, used[0].Name)
 	}
 	var seq []netip.Addr
 	if startIP.IsValid() {
@@ -158,6 +187,14 @@ func cmdApply(args []string) int {
 	}
 
 	items := batch.Build(devs, reqs)
+	if gatewayAssumed {
+		for i := range items {
+			if it := &items[i]; it.Status == batch.Planned {
+				it.Warnings = append(it.Warnings, fmt.Sprintf(
+					"gateway %s is a guess: no camera on this network to copy it from (set it with --gw)", it.Target.Gateway))
+			}
+		}
+	}
 	out := applyOutput{DryRun: dry, Devices: items}
 	report := func() {
 		if asJSON {

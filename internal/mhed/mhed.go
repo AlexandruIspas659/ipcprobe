@@ -101,6 +101,9 @@ type Device struct {
 	RTSP     uint16 `json:"rtsp"`
 	Build    string `json:"build"`
 	Src      string `json:"src,omitempty"` // source address of the announcement (filled by the discovery layer)
+	// Foreign is true when the device's IP is outside every subnet of the interfaces being listened on, i.e. it
+	// can be heard (multicast) but not reached by IP. Like Src, it is filled by the discovery layer, not parsed.
+	Foreign bool `json:"foreign"`
 }
 
 // Command returns the command word of an MHED datagram, and false if it isn't one.

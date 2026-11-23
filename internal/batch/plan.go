@@ -267,6 +267,14 @@ func Build(devices map[string]*mhed.Device, reqs []Request) []Item {
 	return items
 }
 
+// normalizeMAC returns mac in the form devices are keyed by, or mac itself if it does not parse.
+func normalizeMAC(mac string) string {
+	if hw, err := net.ParseMAC(mac); err == nil && len(hw) == 6 {
+		return hw.String()
+	}
+	return mac
+}
+
 // Blocked reports whether any item is Invalid, in which case nothing in the batch should be sent.
 func Blocked(items []Item) bool {
 	for i := range items {

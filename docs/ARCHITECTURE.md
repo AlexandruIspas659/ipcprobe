@@ -126,6 +126,7 @@ uses it as a progress signal, never as a success signal.
 `Device` has JSON tags (`json:"mac"`, …) whose names match the keys the Python reference used, so `--json` output is
 stable and `vectors.json` can be decoded straight into the struct in tests. `Src` — the IP the announcement came
 from — is filled in by the discovery layer, not the parser, and is `omitempty` because it isn't part of the packet.
+So is `Foreign`: whether the announced address lies outside every subnet of the interfaces being listened on.
 
 ### Building the device side too
 
@@ -292,6 +293,14 @@ DNS server in place (no request carries an IP). Each request becomes an `Item` w
 must not land on the *final* address of any other discovered device — its target if it is in the batch, its
 current address otherwise. Using final addresses is what lets a swap or a shift through while still catching two
 cameras given the same address. One `invalid` item blocks the whole batch: nothing is sent.
+
+**Rescue (`rescue.go`, pure).** `--rescue` writes the requests for you. Discovery marks a device `Foreign` when
+its address is outside every subnet of the interfaces in use (`Conn.OnLink`) — heard by multicast, unreachable by
+IP. `Rescue` gives each such device a free address in the host's subnet, the subnet's mask, and the gateway most
+of the devices already there announce (falling back to the subnet's first address, with a warning that it is a
+guess). Free addresses are taken right after the highest device already in the subnet so the cameras stay
+together, or from the top of an empty subnet downwards. "This network" has to be unambiguous, so `--rescue`
+refuses to run on more than one interface. The result is ordinary requests, so everything below applies unchanged.
 
 **Carrying it out (`run.go`).** With the canary on (the default), the first planned device is sent to alone and
 must confirm before the others are touched; if it doesn't, the rest are marked `not-sent`. The usual reason is a

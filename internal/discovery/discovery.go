@@ -183,6 +183,21 @@ func Open(ifaces []Iface) (*Conn, error) {
 	return c, nil
 }
 
+// Ifaces returns the interfaces this connection listens and sends on.
+func (c *Conn) Ifaces() []Iface { return append([]Iface(nil), c.ifaces...) }
+
+// OnLink reports whether ip is inside the subnet of one of the connection's interfaces — whether this host can
+// talk to it by IP without a router. A device that announces an address for which this is false is the tool's
+// reason to exist: visible by multicast, unreachable any other way.
+func (c *Conn) OnLink(ip netip.Addr) bool {
+	for _, ifc := range c.ifaces {
+		if ifc.Net.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
 // Close releases all sockets.
 func (c *Conn) Close() {
 	for _, pc := range c.rx {
@@ -305,6 +320,9 @@ func (c *Conn) Collect(d time.Duration) (map[string]*mhed.Device, []Ack) {
 				pkt := buf[:n]
 				if dev, ok := mhed.ParseAnnounce(pkt); ok {
 					dev.Src = src.IP.String()
+					if a, err := netip.ParseAddr(dev.IP); err == nil {
+						dev.Foreign = !c.OnLink(a)
+					}
 					mu.Lock()
 					devices[dev.MAC] = dev
 					mu.Unlock()
@@ -329,7 +347,8 @@ func (c *Conn) Discover(d time.Duration) (map[string]*mhed.Device, []Ack, error)
 	return devs, acks, nil
 }
 
-// SortedByIP returns devices ordered by IPv4 address.
+// SortedByIP returns devices ordered by IPv4 address, and by MAC among devices that share one (factory-fresh
+// cameras do), so the order is the same on every run.
 func SortedByIP(m map[string]*mhed.Device) []*mhed.Device {
 	out := make([]*mhed.Device, 0, len(m))
 	for _, d := range m {
@@ -338,7 +357,10 @@ func SortedByIP(m map[string]*mhed.Device) []*mhed.Device {
 	sort.Slice(out, func(i, j int) bool {
 		a, _ := netip.ParseAddr(out[i].IP)
 		b, _ := netip.ParseAddr(out[j].IP)
-		return a.Less(b)
+		if a != b {
+			return a.Less(b)
+		}
+		return out[i].MAC < out[j].MAC
 	})
 	return out
 }

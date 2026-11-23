@@ -16,6 +16,10 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
   every camera's old and new configuration before anything is sent. The sheet's Order menu and drag-to-reorder
   decide which camera gets which address. A new Cameras menu and two toolbar buttons give Select All (⌥⌘A) and
   Change Network (⌘E).
+- **Rescue.** `list` now points out cameras that sit on another subnet than this computer (and cameras sharing an
+  address), `list --json` carries a `foreign` flag, and `ipcprobe apply --rescue` brings such cameras into this
+  computer's subnet in one go: each gets a free address there, with its mask and the gateway the cameras already
+  on it use. `--all --rescue` takes every camera that needs it.
 - `fakecam --count N [--same-ip]` runs several software cameras, for trying a batch without hardware.
 
 ### Fixed

@@ -3,6 +3,7 @@ package discovery
 import (
 	"net"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +28,38 @@ func TestUsableFlags(t *testing.T) {
 	} {
 		if got := usableFlags(c.flags); got != c.want {
 			t.Errorf("%s: usableFlags(%v) = %v, want %v", c.name, c.flags, got, c.want)
+		}
+	}
+}
+
+func TestSortedByIPBreaksTiesByMAC(t *testing.T) {
+	m := map[string]*mhed.Device{}
+	for _, d := range []*mhed.Device{
+		{MAC: "02:00:00:00:00:03", IP: "10.0.0.5"}, {MAC: "02:00:00:00:00:01", IP: "10.0.0.5"},
+		{MAC: "02:00:00:00:00:02", IP: "10.0.0.5"}, {MAC: "02:00:00:00:00:09", IP: "10.0.0.4"},
+	} {
+		m[d.MAC] = d
+	}
+	var got []string
+	for _, d := range SortedByIP(m) {
+		got = append(got, d.MAC[15:])
+	}
+	if want := "09 01 02 03"; strings.Join(got, " ") != want {
+		t.Errorf("order %v, want %s", got, want)
+	}
+}
+
+func TestOnLink(t *testing.T) {
+	c := &Conn{ifaces: []Iface{
+		{Name: "en0", IP: netip.MustParseAddr("192.168.1.145"), Net: netip.MustParsePrefix("192.168.1.0/24")},
+		{Name: "en5", IP: netip.MustParseAddr("10.20.0.7"), Net: netip.MustParsePrefix("10.20.0.0/16")},
+	}}
+	for addr, want := range map[string]bool{
+		"192.168.1.69": true, "10.20.30.40": true, // on one of the two subnets
+		"192.168.2.69": false, "10.21.0.1": false, "169.254.10.10": false, "0.0.0.0": false,
+	} {
+		if got := c.OnLink(netip.MustParseAddr(addr)); got != want {
+			t.Errorf("OnLink(%s) = %v, want %v", addr, got, want)
 		}
 	}
 }
@@ -80,6 +113,10 @@ func TestEndToEndWithFakeCamera(t *testing.T) {
 	}
 	if d.IP != "192.168.77.10" || d.Name != "e2e" || d.Model != "DCN-TEST" || d.HTTP != 80 || d.Build != "2026-01-02" {
 		t.Fatalf("unexpected device: %+v", d)
+	}
+	// Heard by multicast whatever its address; flagged when that address is not on this interface's subnet.
+	if want := !ifc.Net.Contains(netip.MustParseAddr("192.168.77.10")); d.Foreign != want {
+		t.Fatalf("Foreign = %v for %s heard on %s, want %v", d.Foreign, d.IP, ifc.Net, want)
 	}
 
 	hw, _ := net.ParseMAC(mac)
