@@ -1,4 +1,4 @@
-.PHONY: build test test-short fakecam mhedpcap app snapshot clean
+.PHONY: build test test-short fakecam mhedpcap app run-app snapshot clean
 
 build:
 	go build -o ipcprobe ./cmd/ipcprobe
@@ -19,6 +19,12 @@ mhedpcap:
 # the macOS app: macos/dist/ipcprobe.app + .dmg (needs Xcode or the Command Line Tools)
 app:
 	macos/build-app.sh
+
+# run the app straight from source against a freshly built helper — no bundle, for quick UI work.
+# Works from any directory:  make -C path/to/ipcprobe run-app
+run-app:
+	go build -o macos/.build/ipcprobe-dev ./cmd/ipcprobe
+	cd macos && IPCPROBE_BIN="$(CURDIR)/macos/.build/ipcprobe-dev" swift run IPCProbe
 
 # local multi-platform build without publishing (needs goreleaser installed)
 snapshot:
