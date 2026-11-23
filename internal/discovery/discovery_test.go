@@ -10,6 +10,27 @@ import (
 	"github.com/AlexandruIspas659/ipcprobe/internal/mhed"
 )
 
+// A VPN tunnel must never be offered: macOS flags utun interfaces MULTICAST even though they are point-to-point.
+func TestUsableFlags(t *testing.T) {
+	const eth = net.FlagUp | net.FlagBroadcast | net.FlagMulticast | net.FlagRunning
+	for _, c := range []struct {
+		name  string
+		flags net.Flags
+		want  bool
+	}{
+		{"ethernet", eth, true},
+		{"down", eth &^ net.FlagUp, false},
+		{"loopback", net.FlagUp | net.FlagLoopback | net.FlagMulticast, false},
+		{"no multicast", net.FlagUp | net.FlagBroadcast, false},
+		{"macOS utun (point-to-point with MULTICAST set)", net.FlagUp | net.FlagPointToPoint | net.FlagMulticast | net.FlagRunning, false},
+		{"point-to-point without multicast", net.FlagUp | net.FlagPointToPoint, false},
+	} {
+		if got := usableFlags(c.flags); got != c.want {
+			t.Errorf("%s: usableFlags(%v) = %v, want %v", c.name, c.flags, got, c.want)
+		}
+	}
+}
+
 // End-to-end over real sockets: a fake camera on one interface, the discovery layer on the same interface.
 // Exercises multicast join, egress selection, the receive loop, and the set/ack/re-announce sequence — everything
 // the unit tests can't. Needs a multicast-capable interface; skipped where there is none (some sandboxes).

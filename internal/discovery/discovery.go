@@ -36,7 +36,15 @@ func NetInterface(i Iface) (*net.Interface, error) {
 	return i.iface, nil
 }
 
-// Interfaces returns every up, non-loopback interface that has an IPv4 address.
+// usableFlags reports whether an interface with these flags can carry MHED: up, not loopback, multicast-capable,
+// and not point-to-point. The last test is not redundant with the multicast one — macOS sets MULTICAST on utun
+// (VPN) interfaces, but a tunnel is a routed link, not the cameras' Ethernet segment, so the protocol cannot use it.
+func usableFlags(f net.Flags) bool {
+	return f&net.FlagUp != 0 && f&net.FlagLoopback == 0 && f&net.FlagMulticast != 0 && f&net.FlagPointToPoint == 0
+}
+
+// Interfaces returns every up, non-loopback, multicast-capable, non-point-to-point interface that has an IPv4
+// address.
 func Interfaces() ([]Iface, error) {
 	ifs, err := net.Interfaces()
 	if err != nil {
@@ -45,7 +53,7 @@ func Interfaces() ([]Iface, error) {
 	var out []Iface
 	for i := range ifs {
 		in := ifs[i]
-		if in.Flags&net.FlagUp == 0 || in.Flags&net.FlagLoopback != 0 || in.Flags&net.FlagMulticast == 0 {
+		if !usableFlags(in.Flags) {
 			continue
 		}
 		addrs, err := in.Addrs()
@@ -83,7 +91,7 @@ func whyUnusable(name string) string {
 	case in.Flags&net.FlagLoopback != 0:
 		return "is the loopback interface"
 	case in.Flags&net.FlagMulticast == 0 || in.Flags&net.FlagPointToPoint != 0:
-		return "is a point-to-point/VPN interface without multicast — the camera protocol is link-layer multicast " +
+		return "is a point-to-point/VPN interface — the camera protocol is link-layer multicast " +
 			"and cannot cross a tunnel; run ipcprobe on a host that is on the cameras' own network segment " +
 			"(e.g. over SSH on the site's gateway)"
 	}
