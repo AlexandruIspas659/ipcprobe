@@ -2,12 +2,15 @@
 # Run the app's unit tests (Swift Testing).
 #
 # With full Xcode `swift test` just works. With only the Command Line Tools the Testing framework is installed but
-# SwiftPM does not look for it, so point the compiler and the linker at it.
+# SwiftPM does not look for it, so point the compiler and the linker at it. The Command Line Tools also ship the
+# Testing+Foundation overlay without its module file, so a test that imports both would not compile: turn the
+# automatic overlay import off there (the tests do not use what it adds).
 set -euo pipefail
 cd "$(dirname "$0")"
 FLAGS=()
 if [[ "$(xcode-select -p 2>/dev/null)" == /Library/Developer/CommandLineTools* ]]; then
   F=/Library/Developer/CommandLineTools/Library/Developer/Frameworks
-  FLAGS=(-Xswiftc "-F$F" -Xlinker "-F$F" -Xlinker -rpath -Xlinker "$F")
+  FLAGS=(-Xswiftc "-F$F" -Xlinker "-F$F" -Xlinker -rpath -Xlinker "$F"
+         -Xswiftc -Xfrontend -Xswiftc -disable-cross-import-overlays)
 fi
 exec swift test ${FLAGS[@]+"${FLAGS[@]}"} "$@"

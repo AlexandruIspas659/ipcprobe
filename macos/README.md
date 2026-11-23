@@ -15,7 +15,7 @@ Sources/IPCProbe/
   Model/ProbeRunner.swift  runs the helper: finds it, pipes the password over stdin, streams stderr
   Model/AppModel.swift     app state: interfaces, devices, scan, set
 Resources/Info.plist       bundle metadata; NSLocalNetworkUsageDescription is what macOS shows in its prompt
-  Model/CameraLists.swift  list logic with no UI in it (ordering) — what the unit tests cover
+  Model/CameraLists.swift  list logic with no UI in it (ordering, shared addresses) — what the unit tests cover
 Tests/IPCProbeTests/       unit tests for the app's own logic; nothing here touches the network
 test.sh                    runs them (`swift test`, plus the flags the Command Line Tools need)
 build-app.sh               assembles the .app (helper + Swift binary), ad-hoc signs it, wraps it in a .dmg
@@ -31,6 +31,12 @@ icon/                      the app icon: draw.py renders it, build_icns.py assem
 | Change network | `ipcprobe set --mac … --ip … --mask … --gw … [--dns1 --dns2 --iface --force]` | **password on stdin**, never on the command line; stderr lines are shown live; exit 0 confirmed / 2 not confirmed / 1 setup error |
 | Batch: Preview | `ipcprobe apply --mac a,b,c --json --dry-run [--start-ip … --step … --mask … --gw … --dns1 … --dns2 …]` | stdout = `{dry_run, devices:[…]}`: each camera's current and target configuration, status, warnings; nothing is sent |
 | Batch: Apply | the same flags with `--yes` instead of `--dry-run` (and `--no-canary` if the box is unticked) | **password on stdin**; stderr lines are shown live; stdout = the same JSON with each camera's outcome |
+| Bring into This Network | `ipcprobe apply --mac a,b,c --rescue --json --dry-run [--gw … --dns1 … --dns2 …]`, then `--yes` | the helper picks a free address in this Mac's subnet for each stranded camera; same JSON, same sheet |
+
+Cameras whose address is outside this Mac's subnet (`foreign` in `list --json`) carry an orange mark in the table,
+and a banner above it offers to bring them in; cameras announcing the same address carry a mark too. With "All
+interfaces" selected on a Mac that has several, the helper declines to guess which network is meant — pick the
+cameras' interface in the toolbar first.
 
 Select several rows (⌘-click, ⇧-click) to get the batch sheet. Cameras are passed in the order the table shows
 them, and the sheet lets you change that: its Order menu sorts by MAC, name or current address or reverses the

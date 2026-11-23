@@ -22,10 +22,15 @@ final class AppModel: ObservableObject {
     var selectedDevices: [Device] { devices.filter { selection.contains($0.mac) } }
     var selectedDevice: Device? { selection.count == 1 ? selectedDevices.first : nil }
 
+    /// What a batch sheet is for: a change the user describes, or bringing stranded cameras into this Mac's subnet
+    /// with addresses the helper picks (`apply --rescue`).
+    enum BatchMode { case change, rescue }
+
     /// The cameras a batch sheet was opened for — a snapshot, so a rescan behind the sheet cannot change them.
     struct BatchSelection: Identifiable {
         let id = UUID()
         let devices: [Device]
+        var mode: BatchMode = .change
     }
 
     /// The sheet that is up, if any. Each carries its own cameras: a sheet presented from a bare flag reads the
@@ -46,6 +51,20 @@ final class AppModel: ObservableObject {
     }
 
     func selectAll() { selection = Set(devices.map(\.mac)) }
+
+    /// The stranded cameras a rescue would act on: the selected ones if any of the selection is stranded, otherwise
+    /// every stranded camera in the list.
+    var rescueCandidates: [Device] {
+        let chosen = selectedDevices.foreign
+        return chosen.isEmpty ? devices.foreign : chosen
+    }
+
+    /// Opens the batch sheet in rescue mode for `rescueCandidates`.
+    func rescue() {
+        guard editing == nil, batch == nil else { return }
+        let stranded = rescueCandidates
+        if !stranded.isEmpty { batch = BatchSelection(devices: stranded, mode: .rescue) }
+    }
 
     /// The app's own version, from Info.plist ("dev" when run outside a bundle with `swift run`).
     var appVersion: String {

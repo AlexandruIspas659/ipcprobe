@@ -9,6 +9,9 @@ import SwiftUI
 /// gateway or DNS server to change those in place.
 struct BatchSheet: View {
     let devices: [Device]
+    /// `.rescue` is the same sheet with less to fill in: the helper picks the addresses and the mask
+    /// (`apply --rescue`), and the gateway unless one is given.
+    var mode: AppModel.BatchMode = .change
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
 
@@ -38,8 +41,12 @@ struct BatchSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Change network of \(devices.count) cameras").font(.title3).bold()
-            Text("Empty fields keep each camera's current value.").foregroundStyle(.secondary)
+            Text(title).font(.title3).bold()
+            Text(mode == .rescue
+                 ? "Each camera gets a free address in this Mac's subnet, with its mask. Fill in a field only to override what the cameras already on this network use."
+                 : "Empty fields keep each camera's current value.")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             form
             orderBar
@@ -62,10 +69,42 @@ struct BatchSheet: View {
         }
     }
 
+    private var title: String {
+        let n = devices.count
+        switch mode {
+        case .change: return "Change network of \(n) cameras"
+        case .rescue: return n == 1 ? "Bring 1 camera into this network" : "Bring \(n) cameras into this network"
+        }
+    }
+
     // MARK: form
 
     private var form: some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+            if mode == .rescue {
+                fieldRow("Gateway", $gateway, prompt: "the one the cameras on this network use")
+                fieldRow("DNS 1", $dns1, prompt: "the gateway")
+                fieldRow("DNS 2", $dns2, prompt: "keep each camera's current")
+            } else {
+                changeFields
+            }
+            GridRow {
+                Text("Admin password").gridColumnAlignment(.trailing)
+                SecureField("", text: $password, prompt: Text("the same password is used for every camera"))
+                    .font(.system(.body, design: .monospaced))
+            }
+            GridRow {
+                Color.clear.frame(width: 0, height: 0)
+                Toggle("Try the first camera on its own, and stop if it does not confirm", isOn: $canary)
+                    .help("A wrong password then reaches one camera instead of all of them.")
+            }
+        }
+        .disabled(phase == .previewing || phase == .running)
+        .textFieldStyle(.roundedBorder)
+    }
+
+    @ViewBuilder
+    private var changeFields: some View {
             GridRow {
                 Text("Addresses").gridColumnAlignment(.trailing)
                 HStack(spacing: 8) {
@@ -85,25 +124,13 @@ struct BatchSheet: View {
             fieldRow("Gateway", $gateway)
             fieldRow("DNS 1", $dns1)
             fieldRow("DNS 2", $dns2)
-            GridRow {
-                Text("Admin password").gridColumnAlignment(.trailing)
-                SecureField("", text: $password, prompt: Text("the same password is used for every camera"))
-                    .font(.system(.body, design: .monospaced))
-            }
-            GridRow {
-                Color.clear.frame(width: 0, height: 0)
-                Toggle("Try the first camera on its own, and stop if it does not confirm", isOn: $canary)
-                    .help("A wrong password then reaches one camera instead of all of them.")
-            }
-        }
-        .disabled(phase == .previewing || phase == .running)
-        .textFieldStyle(.roundedBorder)
     }
 
-    private func fieldRow(_ label: String, _ text: Binding<String>) -> some View {
+    private func fieldRow(_ label: String, _ text: Binding<String>,
+                          prompt: String = "keep each camera's current") -> some View {
         GridRow {
             Text(label).gridColumnAlignment(.trailing)
-            TextField("", text: text, prompt: Text("keep each camera's current"))
+            TextField("", text: text, prompt: Text(prompt))
                 .font(.system(.body, design: .monospaced))
                 .autocorrectionDisabled()
         }
@@ -122,7 +149,7 @@ struct BatchSheet: View {
                 Button("By Current Address") { ordered = ordered.sorted(by: .address) }
             }
             .fixedSize()
-            Text(assignIPs ? "Addresses are handed out top to bottom. Drag rows to reorder."
+            Text(assignIPs || mode == .rescue ? "Addresses are handed out top to bottom. Drag rows to reorder."
                            : "The first camera is the one tried on its own. Drag rows to reorder.")
                 .font(.callout).foregroundStyle(.secondary)
             Spacer()
@@ -329,11 +356,13 @@ struct BatchSheet: View {
     /// The helper flags the form currently describes (without `--dry-run` / `--yes`).
     private var options: [String] {
         var o: [String] = []
-        if assignIPs {
+        if mode == .rescue {
+            o.append("--rescue")
+        } else if assignIPs {
             o += ["--start-ip", startIP]
             if step != "1" { o += ["--step", step] }
         }
-        if !mask.isEmpty { o += ["--mask", mask] }
+        if !mask.isEmpty, mode == .change { o += ["--mask", mask] }
         if !gateway.isEmpty { o += ["--gw", gateway] }
         if !dns1.isEmpty { o += ["--dns1", dns1] }
         if !dns2.isEmpty { o += ["--dns2", dns2] }
@@ -343,6 +372,7 @@ struct BatchSheet: View {
     private var formValid: Bool {
         let optional = [mask, gateway, dns1, dns2]
         guard optional.allSatisfy({ $0.isEmpty || isIPv4($0) }) else { return false }
+        if mode == .rescue { return true }      // nothing is required: the helper works the plan out
         if assignIPs {
             guard isIPv4(startIP), let n = Int(step), n >= 1 else { return false }
             return true

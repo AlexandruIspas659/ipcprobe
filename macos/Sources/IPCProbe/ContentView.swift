@@ -8,11 +8,15 @@ struct ContentView: View {
 
     var body: some View {
         HSplitView {
-            deviceTable
-                .frame(minWidth: 560)
+            VStack(spacing: 0) {
+                rescueBanner
+                deviceTable
+            }
+            .frame(minWidth: 560)
             DeviceDetail(device: model.selectedDevice, selected: model.selectedDevices,
                          onChangeNetwork: { model.changeNetwork() },
-                         onChangeBatch: { model.changeNetwork() })
+                         onChangeBatch: { model.changeNetwork() },
+                         onRescue: { model.rescue() })
                 .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
                 .background(GeometryReader { g in
                     Color.clear
@@ -27,7 +31,7 @@ struct ContentView: View {
                 .environmentObject(model)
         }
         .sheet(item: $model.batch) { b in
-            BatchSheet(devices: b.devices)
+            BatchSheet(devices: b.devices, mode: b.mode)
                 .environmentObject(model)
         }
     }
@@ -38,7 +42,7 @@ struct ContentView: View {
         // below re-sorts the list. IP and Gateway sort by their numeric value (so .9 comes before .134) while
         // still showing the dotted string.
         Table(model.devices, selection: $model.selection, sortOrder: $model.sortOrder) {
-            TableColumn("IP", value: \.ipValue) { Text($0.ip) }.width(min: 110, ideal: 120)
+            TableColumn("IP", value: \.ipValue) { addressCell($0) }.width(min: 130, ideal: 145)
             TableColumn("MAC", value: \.mac).width(min: 130, ideal: 140)
             TableColumn("Name", value: \.name).width(min: 100)
             TableColumn("Model", value: \.model).width(min: 110)
@@ -52,6 +56,43 @@ struct ContentView: View {
             if model.devices.isEmpty && !model.isScanning {
                 emptyState
             }
+        }
+    }
+
+    /// The address, with a mark when it needs attention: the camera is outside this Mac's subnet, or other cameras
+    /// announce the same address.
+    private func addressCell(_ d: Device) -> some View {
+        HStack(spacing: 5) {
+            Text(d.ip)
+            if d.isForeign {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    .help("Outside this Mac's subnet: it can be configured from here, but not reached by IP (no web page, no video) until its address is changed.")
+            }
+            if let n = model.devices.sharedAddresses[d.ip] {
+                Image(systemName: "square.on.square").foregroundStyle(.secondary)
+                    .help("\(n) cameras announce this address. Give them addresses of their own before using them.")
+            }
+        }
+    }
+
+    /// Shown only while there are stranded cameras: says what is wrong and offers the way out.
+    @ViewBuilder
+    private var rescueBanner: some View {
+        let stranded = model.devices.foreign.count
+        if stranded > 0 {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Text(stranded == 1
+                     ? "1 camera is outside this Mac's subnet and cannot be reached by IP."
+                     : "\(stranded) cameras are outside this Mac's subnet and cannot be reached by IP.")
+                    .lineLimit(2)
+                Spacer()
+                Button("Bring into This Network…") { model.rescue() }
+            }
+            .font(.callout)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Color.orange.opacity(0.12))
+            Divider()
         }
     }
 

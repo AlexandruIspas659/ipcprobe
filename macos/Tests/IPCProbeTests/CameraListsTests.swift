@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import IPCProbe
 
@@ -5,6 +6,37 @@ func camera(_ mac: String, ip: String = "192.168.1.88", name: String = "DVC") ->
     Device(mac: mac, ip: ip, mask: "255.255.255.0", gateway: "192.168.1.1", dns1: "192.168.1.1", dns2: "8.8.8.8",
            name: name, serial: "S", firmware: "1.5", model: "DCN-TEST", vendor: "DVC", http: 80, rtsp: 554,
            build: "2026-01-01", src: nil)
+}
+
+@Suite struct CameraFlagTests {
+    @Test func sharedAddressesCountsOnlyAddressesUsedMoreThanOnce() {
+        let cams = [camera("02:00:00:00:00:01"), camera("02:00:00:00:00:02"), camera("02:00:00:00:00:03"),
+                    camera("02:00:00:00:00:04", ip: "192.168.1.10")]
+        #expect(cams.sharedAddresses == ["192.168.1.88": 3])
+        #expect([Device]().sharedAddresses.isEmpty)
+    }
+
+    @Test func foreignTreatsAMissingFlagAsReachable() {
+        var stranded = camera("02:00:00:00:00:01", ip: "10.0.0.5")
+        stranded.foreign = true
+        let old = camera("02:00:00:00:00:02")          // a helper that predates the flag sends none
+        var home = camera("02:00:00:00:00:03")
+        home.foreign = false
+        #expect([stranded, old, home].foreign.map(\.mac) == ["02:00:00:00:00:01"])
+    }
+
+    @Test func decodesTheHelpersJSONWithAndWithoutTheFlag() throws {
+        let json = """
+        [{"mac":"02:00:00:00:00:01","ip":"10.0.0.5","mask":"255.0.0.0","gateway":"10.0.0.1","dns1":"10.0.0.1",
+          "dns2":"8.8.8.8","name":"lost","serial":"S","firmware":"1.5","model":"M","vendor":"V","http":80,"rtsp":554,
+          "build":"2026-01-01","src":"192.168.1.145","foreign":true},
+         {"mac":"02:00:00:00:00:02","ip":"192.168.1.9","mask":"255.255.255.0","gateway":"192.168.1.1",
+          "dns1":"192.168.1.1","dns2":"8.8.8.8","name":"old","serial":"S","firmware":"1.5","model":"M","vendor":"V",
+          "http":80,"rtsp":554,"build":""}]
+        """
+        let devices = try JSONDecoder().decode([Device].self, from: Data(json.utf8))
+        #expect(devices.map(\.isForeign) == [true, false])
+    }
 }
 
 @Suite struct CameraOrderTests {

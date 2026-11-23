@@ -26,6 +26,10 @@ struct IPCProbeApp: App {
                 }
                 .keyboardShortcut("e", modifiers: .command)
                 .disabled(model.selection.isEmpty)
+                Divider()
+                Button("Bring into This Network…") { model.rescue() }
+                    .keyboardShortcut("b", modifiers: [.command, .shift])
+                    .disabled(model.rescueCandidates.isEmpty)
             }
         }
     }

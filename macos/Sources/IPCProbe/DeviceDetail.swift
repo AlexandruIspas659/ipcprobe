@@ -8,6 +8,7 @@ struct DeviceDetail: View {
     var selected: [Device] = []
     var onChangeNetwork: () -> Void
     var onChangeBatch: () -> Void = {}
+    var onRescue: () -> Void = {}
 
     var body: some View {
         Group {
@@ -56,8 +57,17 @@ struct DeviceDetail: View {
                             Button("Copy RTSP URL") { copy(r) }
                         }
                     }
-                    Button("Change network…", action: onChangeNetwork)
-                        .buttonStyle(.borderedProminent)
+                    if d.isForeign {
+                        Text("Outside this Mac's subnet: the web page and video will not open until its address is changed.")
+                            .font(.callout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Bring into This Network…", action: onRescue)
+                            .buttonStyle(.borderedProminent)
+                        Button("Change network…", action: onChangeNetwork)
+                    } else {
+                        Button("Change network…", action: onChangeNetwork)
+                            .buttonStyle(.borderedProminent)
+                    }
                 }
             }
             .padding(16)
@@ -77,6 +87,10 @@ struct DeviceDetail: View {
                 section("Actions") {
                     Button("Change network of \(ds.count) cameras…", action: onChangeBatch)
                         .buttonStyle(.borderedProminent)
+                    if !ds.foreign.isEmpty {
+                        Button("Bring \(ds.foreign.count) into This Network…", action: onRescue)
+                            .help("The selected cameras that are outside this Mac's subnet each get a free address in it.")
+                    }
                 }
                 section("Selected, in table order") {
                     ForEach(ds) { d in

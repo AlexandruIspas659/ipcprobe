@@ -20,6 +20,9 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
   address), `list --json` carries a `foreign` flag, and `ipcprobe apply --rescue` brings such cameras into this
   computer's subnet in one go: each gets a free address there, with its mask and the gateway the cameras already
   on it use. `--all --rescue` takes every camera that needs it.
+- macOS app: stranded cameras are marked in the table and a banner offers "Bring into This Network…" (also in
+  the Cameras menu, ⇧⌘B), which previews and applies the rescue in the batch sheet. Cameras sharing an address are
+  marked as well.
 - `fakecam --count N [--same-ip]` runs several software cameras, for trying a batch without hardware.
 
 ### Fixed

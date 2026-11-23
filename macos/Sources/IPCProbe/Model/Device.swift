@@ -17,6 +17,11 @@ struct Device: Codable, Identifiable, Hashable {
     var rtsp: Int
     var build: String
     var src: String?
+    /// True when the camera's address is outside every subnet of the interfaces the helper listened on: it can be
+    /// heard, but not reached by IP. Absent from helpers older than 0.4.
+    var foreign: Bool? = nil
+
+    var isForeign: Bool { foreign ?? false }
 
     /// A camera is identified by its MAC: the IP is the thing we change.
     var id: String { mac }
