@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlexandruIspas659/ipcprobe/internal/batch"
 	"github.com/AlexandruIspas659/ipcprobe/internal/discovery"
 	"github.com/AlexandruIspas659/ipcprobe/internal/mhed"
 )
@@ -243,17 +244,10 @@ func cmdSet(args []string) int {
 			return 2
 		}
 	}
-	prefix, ok := maskToPrefix(ip, mask)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "error: %s is not a valid netmask\n", mask)
+	prefix, err := batch.CheckAddress(ip, mask)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
 		return 2
-	}
-	if prefix.Bits() < 31 {
-		net := prefix.Masked()
-		if ip == net.Addr() || ip == broadcast(net) {
-			fmt.Fprintf(os.Stderr, "error: %s is the network or broadcast address of %s\n", ip, net)
-			return 2
-		}
 	}
 	if !prefix.Contains(gw) {
 		fmt.Fprintf(os.Stderr, "warning: gateway %s is outside %s\n", gw, prefix.Masked())
@@ -303,10 +297,16 @@ func cmdSet(args []string) int {
 	defer conn.Close()
 
 	fmt.Fprintf(os.Stderr, "discovering on %s ...\n", ifaceList(ifaces))
+	// Success is the camera announcing the whole requested configuration, not just the IP: a change that keeps the
+	// address would otherwise look confirmed before the camera had done anything, wrong password or not.
+	want := batch.Config{IP: ip, Mask: mask, Gateway: gw, DNS1: dns1, DNS2: dns2}
 	before, _, _ := conn.Discover(f.dur("timeout", 3))
 	if cur := before[macText]; cur != nil {
 		fmt.Fprintf(os.Stderr, "found %s: %s %q fw %s at %s/%s gw %s\n",
 			macText, cur.Model, cur.Name, cur.Firmware, cur.IP, cur.Mask, cur.Gateway)
+		if want.Matches(cur) {
+			fmt.Fprintln(os.Stderr, "note: the camera already announces exactly this configuration, so the confirmation below cannot tell whether the password was accepted")
+		}
 	} else if !f.has("force") {
 		fmt.Fprintf(os.Stderr, "error: %s not seen in discovery (%d other device(s) seen); use --force to send anyway\n",
 			macText, len(before))
@@ -348,17 +348,17 @@ func cmdSet(args []string) int {
 			fmt.Fprintf(os.Stderr, "camera at %s received the command (the ack does not validate the password)\n",
 				acks[0].From)
 		}
-		if d := devs[macText]; d != nil && d.IP == ip.String() {
+		if d := devs[macText]; want.Matches(d) {
 			fmt.Printf("confirmed: %s now announces at %s/%s gw %s\n", macText, d.IP, d.Mask, d.Gateway)
 			return 0
 		}
 	}
 	hint := " — no ack from the camera: command probably never reached it (interface / VLAN?)"
 	if acked {
-		hint = " — the camera received the command but has not re-announced at the new address yet: either the admin password was wrong, or it is slow to come back (a subnet change can take longer) — run `ipcprobe list` to check"
+		hint = " — the camera received the command but has not re-announced with the new configuration yet: either the admin password was wrong, or it is slow to come back (a subnet change can take longer) — run `ipcprobe list` to check"
 	}
-	fmt.Fprintf(os.Stderr, "NOT confirmed: %s did not announce at %s within %s%s\n",
-		macText, ip, f.dur("confirm-timeout", 15), hint)
+	fmt.Fprintf(os.Stderr, "NOT confirmed: %s did not announce the new configuration (%s/%s gw %s) within %s%s\n",
+		macText, ip, mask, gw, f.dur("confirm-timeout", 15), hint)
 	return 2
 }
 
@@ -531,28 +531,4 @@ func parseMAC(s string) (net.HardwareAddr, error) {
 		return nil, fmt.Errorf("invalid MAC address: %q", s)
 	}
 	return mac, nil
-}
-
-// maskToPrefix builds ip/prefix from a dotted netmask, verifying the mask is a valid contiguous netmask.
-func maskToPrefix(ip, mask netip.Addr) (netip.Prefix, bool) {
-	if !ip.Is4() || !mask.Is4() {
-		return netip.Prefix{}, false
-	}
-	m := mask.As4()
-	ones := net.IPv4Mask(m[0], m[1], m[2], m[3])
-	bits, size := ones.Size() // size==0 means non-contiguous / invalid
-	if size == 0 {
-		return netip.Prefix{}, false
-	}
-	return netip.PrefixFrom(ip, bits), true
-}
-
-func broadcast(p netip.Prefix) netip.Addr {
-	a := p.Masked().Addr().As4()
-	host := 32 - p.Bits()
-	for i := 0; i < host; i++ {
-		byteIdx := 3 - i/8
-		a[byteIdx] |= 1 << (uint(i) % 8)
-	}
-	return netip.AddrFrom4(a)
 }
