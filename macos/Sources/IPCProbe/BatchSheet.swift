@@ -338,6 +338,14 @@ struct BatchSheet: View {
             ProgressView().controlSize(.small)
             Text("Waiting for the cameras…").foregroundStyle(.secondary)
         case .done(let status):
+            if !items.isEmpty {
+                // What the recorder's setup and the site's paperwork need: every camera's old and new address.
+                Button("Copy Results") { Export.copy(Export.batchRows(items)) }
+                    .help("Copy the table (tab-separated) to paste into a spreadsheet.")
+                Button("Save as CSV…") {
+                    Export.save(Export.batchRows(items), suggestedName: Export.fileName("camera-changes"))
+                }
+            }
             if status != 0 {
                 Button("Try again") { phase = .editing; previewed = nil }
             }

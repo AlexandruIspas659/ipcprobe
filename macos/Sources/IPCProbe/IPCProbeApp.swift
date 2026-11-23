@@ -27,6 +27,15 @@ struct IPCProbeApp: App {
                 .keyboardShortcut("e", modifiers: .command)
                 .disabled(model.selection.isEmpty)
                 Divider()
+                Button("Copy Camera List") { Export.copy(Export.deviceRows(model.devices)) }
+                    .keyboardShortcut("c", modifiers: [.command, .shift])
+                    .disabled(model.devices.isEmpty)
+                Button("Export Camera List as CSV…") {
+                    Export.save(Export.deviceRows(model.devices), suggestedName: Export.fileName("cameras"))
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(model.devices.isEmpty)
+                Divider()
                 Button("Bring into This Network…") { model.rescue() }
                     .keyboardShortcut("b", modifiers: [.command, .shift])
                     .disabled(model.rescueCandidates.isEmpty)

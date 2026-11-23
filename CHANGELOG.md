@@ -23,6 +23,9 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
 - macOS app: stranded cameras are marked in the table and a banner offers "Bring into This Network…" (also in
   the Cameras menu, ⇧⌘B), which previews and applies the rescue in the batch sheet. Cameras sharing an address are
   marked as well.
+- **Export.** `list --csv` and `apply --csv` write the device list, or a batch's outcome (old and new address per
+  camera), as a spreadsheet. In the app, a finished batch offers Copy Results and Save as CSV…, and the Cameras
+  menu has Copy Camera List (⇧⌘C) and Export Camera List as CSV… (⇧⌘E).
 - `fakecam --count N [--same-ip]` runs several software cameras, for trying a batch without hardware.
 
 ### Fixed

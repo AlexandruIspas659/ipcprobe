@@ -16,6 +16,7 @@ Sources/IPCProbe/
   Model/AppModel.swift     app state: interfaces, devices, scan, set
 Resources/Info.plist       bundle metadata; NSLocalNetworkUsageDescription is what macOS shows in its prompt
   Model/CameraLists.swift  list logic with no UI in it (ordering, shared addresses) — what the unit tests cover
+  Model/Export.swift       the camera list and a batch's outcome as CSV / tab-separated text
 Tests/IPCProbeTests/       unit tests for the app's own logic; nothing here touches the network
 test.sh                    runs them (`swift test`, plus the flags the Command Line Tools need)
 build-app.sh               assembles the .app (helper + Swift binary), ad-hoc signs it, wraps it in a .dmg
