@@ -15,6 +15,9 @@ Sources/IPCProbe/
   Model/ProbeRunner.swift  runs the helper: finds it, pipes the password over stdin, streams stderr
   Model/AppModel.swift     app state: interfaces, devices, scan, set
 Resources/Info.plist       bundle metadata; NSLocalNetworkUsageDescription is what macOS shows in its prompt
+  Model/CameraLists.swift  list logic with no UI in it (ordering) — what the unit tests cover
+Tests/IPCProbeTests/       unit tests for the app's own logic; nothing here touches the network
+test.sh                    runs them (`swift test`, plus the flags the Command Line Tools need)
 build-app.sh               assembles the .app (helper + Swift binary), ad-hoc signs it, wraps it in a .dmg
 icon/                      the app icon: draw.py renders it, build_icns.py assembles AppIcon.icns
 ```
@@ -30,8 +33,10 @@ icon/                      the app icon: draw.py renders it, build_icns.py assem
 | Batch: Apply | the same flags with `--yes` instead of `--dry-run` (and `--no-canary` if the box is unticked) | **password on stdin**; stderr lines are shown live; stdout = the same JSON with each camera's outcome |
 
 Select several rows (⌘-click, ⇧-click) to get the batch sheet. Cameras are passed in the order the table shows
-them, so consecutive addresses follow what is on screen — sort the table first to choose the order. Apply is only
-offered for a preview of exactly what the form says; editing a field means previewing again.
+them, and the sheet lets you change that: its Order menu sorts by MAC, name or current address or reverses the
+list, and rows can be dragged. The order matters because consecutive addresses are handed out top to bottom and the
+first camera is the one tried on its own. Apply is only offered for a preview of exactly what the form and the
+order say; changing either means previewing again.
 
 The helper reads the password silently when stdin is not a terminal (see `cmd/ipcprobe/password.go`), so it never
 appears in `ps`, in logs, or on disk. The sheet clears its own copy the moment the helper has been started.

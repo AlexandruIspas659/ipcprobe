@@ -22,11 +22,17 @@ struct BatchSheet: View {
     @State private var password = ""
     @State private var canary = true
 
+    /// The cameras in the order they will be handled. Starts as the table's order; the Order menu and dragging
+    /// rows change it. It matters twice: consecutive addresses go top to bottom, and the first camera is the one
+    /// tried on its own.
+    @State private var ordered: [Device] = []
+
     private enum Phase: Equatable { case editing, previewing, running, done(Int32) }
     @State private var phase: Phase = .editing
     @State private var items: [BatchItem] = []
-    /// The options the rows in `items` were previewed with. Apply is only offered while the form still says the same.
-    @State private var previewedOptions: [String]? = nil
+    /// What the rows in `items` were previewed for: the options and the camera order. Apply is only offered while
+    /// the form still says the same.
+    @State private var previewed: [String]? = nil
     @State private var log: [String] = []
     @State private var problem: String? = nil
 
@@ -36,6 +42,7 @@ struct BatchSheet: View {
             Text("Empty fields keep each camera's current value.").foregroundStyle(.secondary)
 
             form
+            orderBar
             rows
             if !log.isEmpty { logView }
 
@@ -46,8 +53,9 @@ struct BatchSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 760)
+        .frame(width: 800)
         .onAppear {
+            ordered = devices
             // Cameras fresh out of the box all sit on one address: numbering them is almost certainly the job.
             let addresses = devices.map(\.ip)
             assignIPs = Set(addresses).count < addresses.count
@@ -103,50 +111,87 @@ struct BatchSheet: View {
 
     // MARK: per-camera rows
 
-    private var rows: some View {
-        ScrollView {
-            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 5) {
-                GridRow {
-                    Text("Camera"); Text("Address"); Text("Other changes"); Text("Status")
-                }
-                .font(.caption).foregroundStyle(.secondary)
+    private var orderBar: some View {
+        HStack(spacing: 10) {
+            Menu("Order") {
+                Button("As in the Table") { ordered = devices }
+                Button("Reverse") { ordered.reverse() }
                 Divider()
-                if items.isEmpty {
-                    ForEach(devices) { d in
-                        GridRow {
-                            cameraCell(name: d.name.isEmpty ? d.model : d.name, mac: d.mac)
-                            Text(d.ip)
-                            Text("")
-                            Text("Preview to see the changes").foregroundStyle(.secondary)
-                        }
-                    }
-                } else {
-                    ForEach(Array(items.enumerated()), id: \.offset) { _, it in
-                        GridRow(alignment: .top) {
-                            cameraCell(name: it.name.isEmpty ? it.model : it.name, mac: it.mac)
-                            Text(addressText(it))
-                            Text(otherChanges(it))
-                            statusCell(it)
-                        }
-                        ForEach(notes(it), id: \.self) { note in
-                            GridRow {
-                                Color.clear.frame(width: 0, height: 0)
-                                Text(note).font(.caption).foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .gridCellColumns(3)
-                            }
-                        }
-                    }
-                }
+                Button("By MAC Address") { ordered = ordered.sorted(by: .mac) }
+                Button("By Name") { ordered = ordered.sorted(by: .name) }
+                Button("By Current Address") { ordered = ordered.sorted(by: .address) }
             }
-            .font(.system(.callout, design: .monospaced))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
+            .fixedSize()
+            Text(assignIPs ? "Addresses are handed out top to bottom. Drag rows to reorder."
+                           : "The first camera is the one tried on its own. Drag rows to reorder.")
+                .font(.callout).foregroundStyle(.secondary)
+            Spacer()
+        }
+        .disabled(phase != .editing)
+    }
+
+    private enum Column {
+        static let number: CGFloat = 24, camera: CGFloat = 165, other: CGFloat = 150, status: CGFloat = 160
+    }
+
+    private var rows: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Text("#").frame(width: Column.number, alignment: .trailing)
+                Text("Camera").frame(width: Column.camera, alignment: .leading)
+                Text("Address").frame(maxWidth: .infinity, alignment: .leading)
+                Text("Other changes").frame(width: Column.other, alignment: .leading)
+                Text("Status").frame(width: Column.status, alignment: .leading)
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            .padding(.horizontal, 16).padding(.vertical, 5)
+            Divider()
+            List {
+                ForEach(Array(ordered.enumerated()), id: \.element.mac) { index, d in
+                    row(index + 1, d, itemsByMAC[d.mac])
+                }
+                .onMove { from, to in ordered.move(fromOffsets: from, toOffset: to) }
+            }
+            .listStyle(.plain)
+            .moveDisabled(phase != .editing)
+            // A preview that no longer matches the form or the order is shown faded until it is refreshed.
             .opacity(previewIsCurrent || items.isEmpty || phase != .editing ? 1 : 0.45)
         }
-        .frame(height: 190)
+        .font(.system(.callout, design: .monospaced))
+        .frame(height: 220)
         .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var itemsByMAC: [String: BatchItem] {
+        Dictionary(items.map { ($0.mac, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private func row(_ number: Int, _ d: Device, _ item: BatchItem?) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .top, spacing: 10) {
+                Text("\(number)").foregroundStyle(.secondary).frame(width: Column.number, alignment: .trailing)
+                cameraCell(name: d.name.isEmpty ? d.model : d.name, mac: d.mac)
+                    .frame(width: Column.camera, alignment: .leading)
+                if let it = item {
+                    Text(addressText(it)).frame(maxWidth: .infinity, alignment: .leading)
+                    Text(otherChanges(it)).frame(width: Column.other, alignment: .leading)
+                    statusCell(it).frame(width: Column.status, alignment: .leading)
+                } else {
+                    Text(d.ip).frame(maxWidth: .infinity, alignment: .leading)
+                    Text("").frame(width: Column.other, alignment: .leading)
+                    Text("not previewed").foregroundStyle(.secondary).frame(width: Column.status, alignment: .leading)
+                }
+            }
+            if let it = item {
+                ForEach(notes(it), id: \.self) { note in
+                    Text(note).font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, Column.number + 10)
+                }
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     private func cameraCell(name: String, mac: String) -> some View {
@@ -267,7 +312,7 @@ struct BatchSheet: View {
             Text("Waiting for the cameras…").foregroundStyle(.secondary)
         case .done(let status):
             if status != 0 {
-                Button("Try again") { phase = .editing; previewedOptions = nil }
+                Button("Try again") { phase = .editing; previewed = nil }
             }
             Button("Close") {
                 dismiss()
@@ -306,7 +351,9 @@ struct BatchSheet: View {
     }
 
     private var passwordValid: Bool { !password.isEmpty && password.utf8.count <= 21 }
-    private var previewIsCurrent: Bool { previewedOptions == options }
+    /// The form and the camera order as one value, to tell whether a preview is still about the same thing.
+    private var signature: [String] { options + ["--mac"] + ordered.map(\.mac) }
+    private var previewIsCurrent: Bool { previewed == signature }
 
     /// Apply is offered only for a preview of exactly what the form says now, with something to do and nothing wrong.
     private var canApply: Bool {
@@ -323,18 +370,18 @@ struct BatchSheet: View {
 
     private func preview() {
         guard formValid, phase == .editing else { return }
-        let opts = options
+        let opts = options, macs = ordered.map(\.mac), sig = signature
         phase = .previewing
         problem = nil
         log = []
         Task { @MainActor in
-            let run = await model.applyBatch(macs: devices.map(\.mac), options: opts + ["--dry-run"], password: nil) { _ in }
+            let run = await model.applyBatch(macs: macs, options: opts + ["--dry-run"], password: nil) { _ in }
             if let out = run.output {
                 items = out.devices
-                previewedOptions = opts
+                previewed = sig
             } else {
                 items = []
-                previewedOptions = nil
+                previewed = nil
                 problem = run.message
             }
             phase = .editing
@@ -350,7 +397,7 @@ struct BatchSheet: View {
         problem = nil
         log = []
         Task { @MainActor in
-            let run = await model.applyBatch(macs: devices.map(\.mac), options: opts, password: pw) { line in
+            let run = await model.applyBatch(macs: ordered.map(\.mac), options: opts, password: pw) { line in
                 log.append(line)
             }
             if let out = run.output {
