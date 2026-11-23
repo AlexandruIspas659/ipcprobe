@@ -27,6 +27,9 @@ venv/
 # archives dropped here for convenience (e.g. homebrew-tap.zip) — never part of the repo
 *.zip
 
+# Claude Code working notes — local only
+CLAUDE.md
+
 # local dev builds
 /fakecam
 /mhedpcap
