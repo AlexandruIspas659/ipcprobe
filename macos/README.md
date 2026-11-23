@@ -7,7 +7,7 @@ app can never disagree with the CLI about the protocol, and the CLI's tests cove
 ```
 Sources/IPCProbe/
   IPCProbeApp.swift        entry point, window, ⌘R
-  ContentView.swift        toolbar (interface, listen time, rescan), device table, status bar
+  ContentView.swift        toolbar (interface, live / listen time, select, change, rescan), rescue banner, filter, device table, status bar
   DeviceDetail.swift       every field of the selected camera; open web UI / copy RTSP URL / change network
   SetNetworkSheet.swift    the change-network form; shows the helper's progress and verdict
   BatchSheet.swift         the same for several selected cameras: preview, then apply
@@ -15,7 +15,7 @@ Sources/IPCProbe/
   Model/ProbeRunner.swift  runs the helper: finds it, pipes the password over stdin, streams stderr; keeps `watch` running
   Model/AppModel.swift     app state: interfaces, devices, scan, set
 Resources/Info.plist       bundle metadata; NSLocalNetworkUsageDescription is what macOS shows in its prompt
-  Model/CameraLists.swift  list logic with no UI in it (ordering, shared addresses) — what the unit tests cover
+  Model/CameraLists.swift  list logic with no UI in it (ordering, filtering, shared addresses) — what the unit tests cover
   Model/Export.swift       the camera list and a batch's outcome as CSV / tab-separated text
 Tests/IPCProbeTests/       unit tests for the app's own logic; nothing here touches the network
 test.sh                    runs them (`swift test`, plus the flags the Command Line Tools need)

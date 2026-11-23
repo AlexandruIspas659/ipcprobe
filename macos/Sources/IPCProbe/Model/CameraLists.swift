@@ -19,6 +19,25 @@ extension Array where Element == Device {
     /// The cameras that cannot be reached by IP from this Mac.
     var foreign: [Device] { filter(\.isForeign) }
 
+    /// The cameras matching a filter typed by the user. Every word of the query has to occur somewhere in the
+    /// camera's name, model, addresses, MAC, serial, firmware or vendor; case does not matter, and a MAC can be
+    /// typed with colons, with dashes or with nothing in between. An empty query matches everything.
+    func matching(_ query: String) -> [Device] {
+        let words = query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
+        guard !words.isEmpty else { return self }
+        return filter { d in
+            let bareMAC = d.mac.replacingOccurrences(of: ":", with: "")
+            let haystack = [d.name, d.model, d.ip, d.mask, d.gateway, d.mac, bareMAC, d.serial, d.firmware, d.vendor]
+                .joined(separator: "\n").lowercased()
+            return words.allSatisfy { word in
+                if haystack.contains(word) { return true }
+                // A MAC typed with dashes, or only partly with separators: compare the bare digits.
+                guard word.contains(where: { $0 == "-" || $0 == ":" }) else { return false }
+                return bareMAC.contains(word.filter { $0 != "-" && $0 != ":" })
+            }
+        }
+    }
+
     /// Sorted by the given key, with the MAC as the tie-breaker so the result is stable — factory-fresh cameras
     /// share both their name and their address.
     func sorted(by order: CameraOrder) -> [Device] {

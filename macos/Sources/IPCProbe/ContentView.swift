@@ -5,11 +5,13 @@ struct ContentView: View {
     /// Current width of the detail pane. The selection buttons sit above it at the trailing end of the toolbar and
     /// must not be wider than it, or they visibly hang over the divider when the window is small.
     @State private var detailWidth: CGFloat = 340
+    @FocusState private var filterFocused: Bool
 
     var body: some View {
         HSplitView {
             VStack(spacing: 0) {
                 rescueBanner
+                filterBar
                 deviceTable
             }
             .frame(minWidth: 560)
@@ -41,7 +43,7 @@ struct ContentView: View {
         // together. Columns declared with `value:` are sortable: clicking a header updates model.sortOrder, and the row
         // below re-sorts the list. IP and Gateway sort by their numeric value (so .9 comes before .134) while
         // still showing the dotted string.
-        Table(model.devices, selection: $model.selection, sortOrder: $model.sortOrder) {
+        Table(model.visibleDevices, selection: $model.selection, sortOrder: $model.sortOrder) {
             TableColumn("IP", value: \.ipValue) { addressCell($0) }.width(min: 130, ideal: 145)
             TableColumn("MAC", value: \.mac).width(min: 130, ideal: 140)
             TableColumn("Name", value: \.name).width(min: 100)
@@ -55,6 +57,13 @@ struct ContentView: View {
         .overlay {
             if model.devices.isEmpty && !model.isScanning && model.lastScan != nil {
                 emptyState
+            } else if model.visibleDevices.isEmpty && !model.devices.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").font(.largeTitle).foregroundStyle(.secondary)
+                    Text("No camera matches “\(model.filter)”").font(.title3)
+                    Button("Show All Cameras") { model.filter = "" }
+                }
+                .padding()
             }
         }
     }
@@ -94,6 +103,34 @@ struct ContentView: View {
             .background(Color.orange.opacity(0.12))
             Divider()
         }
+    }
+
+    /// A slim field above the table. It lives here rather than in the toolbar, which has no room to spare at the
+    /// window's minimum width.
+    private var filterBar: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Filter by name, model, address or MAC", text: $model.filter)
+                    .textFieldStyle(.plain)
+                    .focused($filterFocused)
+                    .onExitCommand { model.filter = ""; filterFocused = false }     // Esc clears
+                if !model.filter.isEmpty {
+                    Text("\(model.visibleDevices.count) of \(model.devices.count)").foregroundStyle(.secondary)
+                    Button {
+                        model.filter = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show all cameras")
+                }
+            }
+            .font(.callout)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            Divider()
+        }
+        .onChange(of: model.filterFocusRequests) { _ in filterFocused = true }
     }
 
     private var emptyState: some View {
@@ -139,8 +176,8 @@ struct ContentView: View {
             } label: {
                 toolbarLabel("Select All", "checklist")
             }
-            .disabled(model.devices.isEmpty)
-            .help("Select every camera in the list (⌥⌘A). ⌘-click or ⇧-click rows to pick some of them.")
+            .disabled(model.visibleDevices.isEmpty)
+            .help("Select every camera shown (⌥⌘A) — with a filter, the ones that match. ⌘-click or ⇧-click rows to pick some of them.")
 
             Button {
                 model.changeNetwork()
@@ -179,6 +216,14 @@ struct ContentView: View {
         }
     }
 
+    /// "12 devices", "3 of 12 devices", with "· 2 selected" when several rows are selected.
+    private var countText: String {
+        let all = model.devices.count, shown = model.visibleDevices.count
+        var text = model.filter.isEmpty ? "\(all) device\(all == 1 ? "" : "s")" : "\(shown) of \(all) devices"
+        if model.selection.count > 1 { text += " · \(model.selection.count) selected" }
+        return text
+    }
+
     private var statusBar: some View {
         HStack(spacing: 12) {
             if let e = model.error {
@@ -190,9 +235,9 @@ struct ContentView: View {
                 Circle().fill(model.liveRunning ? Color.green : Color.secondary).frame(width: 8, height: 8)
                 Text(model.lastScan == nil
                      ? "Live · listening…"
-                     : "Live · \(model.devices.count) device\(model.devices.count == 1 ? "" : "s")\(model.selection.count > 1 ? " · \(model.selection.count) selected" : "")")
+                     : "Live · \(countText)")
             } else if let t = model.lastScan {
-                Text("\(model.devices.count) device\(model.devices.count == 1 ? "" : "s")\(model.selection.count > 1 ? " · \(model.selection.count) selected" : "") · scanned \(t.formatted(date: .omitted, time: .standard))")
+                Text("\(countText) · scanned \(t.formatted(date: .omitted, time: .standard))")
             } else {
                 Text("Ready")
             }

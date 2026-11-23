@@ -41,8 +41,18 @@ final class AppModel: ObservableObject {
     @Published var error: String? = nil
     @Published var helperVersion = "…"
 
+    /// What is typed in the filter field; the table shows `visibleDevices`.
+    @Published var filter = "" {
+        didSet { selection.formIntersection(visibleDevices.map(\.mac)) }   // nothing hidden stays selected
+    }
+    /// Bumped to ask the view to put the cursor in the filter field (⌘F).
+    @Published var filterFocusRequests = 0
+
+    /// The cameras the table shows: all of them, or the ones matching the filter.
+    var visibleDevices: [Device] { devices.matching(filter) }
+
     /// The selected cameras in the order the table shows them — the order a batch hands out addresses in.
-    var selectedDevices: [Device] { devices.filter { selection.contains($0.mac) } }
+    var selectedDevices: [Device] { visibleDevices.filter { selection.contains($0.mac) } }
     var selectedDevice: Device? { selection.count == 1 ? selectedDevices.first : nil }
 
     /// What a batch sheet is for: a change the user describes, or bringing stranded cameras into this Mac's subnet
@@ -73,7 +83,8 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func selectAll() { selection = Set(devices.map(\.mac)) }
+    /// Selects every camera the table shows — with a filter, that is the way to pick "all the lobby cameras".
+    func selectAll() { selection = Set(visibleDevices.map(\.mac)) }
 
     /// The stranded cameras a rescue would act on: the selected ones if any of the selection is stranded, otherwise
     /// every stranded camera in the list.
@@ -144,7 +155,7 @@ final class AppModel: ObservableObject {
     private func show(_ found: [Device]) {
         devices = found.sorted(using: sortOrder)
         lastScan = Date()
-        selection.formIntersection(devices.map(\.mac))
+        selection.formIntersection(visibleDevices.map(\.mac))
     }
 
     // MARK: live list

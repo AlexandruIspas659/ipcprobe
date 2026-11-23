@@ -39,6 +39,38 @@ func camera(_ mac: String, ip: String = "192.168.1.88", name: String = "DVC") ->
     }
 }
 
+@Suite struct CameraFilterTests {
+    let cams = [
+        camera("58:5b:69:00:00:01", ip: "192.168.1.69", name: "Lobby North"),
+        camera("58:5b:69:00:00:02", ip: "192.168.1.70", name: "lobby south"),
+        camera("02:00:00:00:00:03", ip: "10.0.0.5", name: "Gate"),
+    ]
+
+    @Test func emptyQueryMatchesEverything() {
+        #expect(cams.matching("").count == 3)
+        #expect(cams.matching("   ").count == 3)
+    }
+
+    @Test func matchesNameIgnoringCase() {
+        #expect(cams.matching("LOBBY").map(\.name) == ["Lobby North", "lobby south"])
+        #expect(cams.matching("gate").map(\.name) == ["Gate"])
+        #expect(cams.matching("nothing like this").isEmpty)
+    }
+
+    @Test func everyWordHasToMatchSomewhere() {
+        #expect(cams.matching("lobby .70").map(\.name) == ["lobby south"])     // a name and part of an address
+        #expect(cams.matching("lobby 10.0").isEmpty)
+        #expect(cams.matching("dcn-test 10.").map(\.name) == ["Gate"])         // model and address
+    }
+
+    @Test func matchesAddressesAndMACsHoweverTheyAreTyped() {
+        #expect(cams.matching("192.168.1.7").map(\.name) == ["lobby south"])
+        #expect(cams.matching("58:5b:69").count == 2)
+        #expect(cams.matching("58-5B-69-00-00-02").map(\.name) == ["lobby south"])
+        #expect(cams.matching("585b69000001").map(\.name) == ["Lobby North"])
+    }
+}
+
 @Suite struct CameraOrderTests {
     let cams = [
         camera("02:00:00:00:00:03", ip: "192.168.1.9", name: "cam-10"),
