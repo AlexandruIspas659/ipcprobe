@@ -33,6 +33,8 @@ func run(args []string) int {
 		return cmdShow(args[1:])
 	case "set":
 		return cmdSet(args[1:])
+	case "apply":
+		return cmdApply(args[1:])
 	case "interfaces":
 		return cmdInterfaces(args[1:])
 	case "-h", "--help", "help":
@@ -56,10 +58,20 @@ func usage() {
   ipcprobe set  --mac <mac> --ip <ip> --mask <mask> --gw <gw>
                 [--dns1 <ip>] [--dns2 <ip>] [--iface en0]
                 [--password <pw>] [--force] [--timeout 3] [--confirm-timeout 15] [--dump]
+  ipcprobe apply (--mac <mac>,<mac>,... | --all | --plan plan.json)
+                [--start-ip <ip> [--step 1]] [--mask <mask>] [--gw <gw>] [--dns1 <ip>] [--dns2 <ip>]
+                [--iface en0] [--password <pw>] [--dry-run] [--yes] [--no-canary] [--json]
+                [--timeout 5] [--confirm-timeout 15] [--gap 0.25]
   ipcprobe interfaces [--json]
 
-The password for set is read from stdin when not given with --password: prompted without echo on a terminal,
-read silently from a pipe otherwise.
+apply changes several cameras at once with one admin password. Whatever is not given is kept from each camera's
+current configuration: --start-ip hands out consecutive addresses in the order the cameras are listed, while
+--gw / --mask / --dns1 / --dns2 alone change those fields in place. --plan takes a JSON array of
+{"mac","ip","mask","gateway","dns1","dns2"} objects (the shape of "list --json"). --dry-run shows what would
+happen and sends nothing.
+
+The password for set and apply is read from stdin when not given with --password: prompted without echo on a
+terminal, read silently from a pipe otherwise.
 `)
 }
 

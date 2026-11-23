@@ -191,12 +191,17 @@ func (c *Conn) Close() {
 	c.rx = nil
 }
 
-func (c *Conn) send(payload []byte) error {
+// dial opens a send socket to GroupTX that leaves through ifc: binding LocalAddr selects the egress interface.
+func dial(ifc Iface) (*net.UDPConn, error) {
 	dst := &net.UDPAddr{IP: net.ParseIP(mhed.GroupTX), Port: mhed.Port}
+	local := &net.UDPAddr{IP: net.IP(ifc.IP.AsSlice())}
+	return net.DialUDP("udp4", local, dst)
+}
+
+func (c *Conn) send(payload []byte) error {
 	var firstErr error
 	for _, ifc := range c.ifaces {
-		local := &net.UDPAddr{IP: net.IP(ifc.IP.AsSlice())}
-		uc, err := net.DialUDP("udp4", local, dst) // binding LocalAddr selects the egress interface
+		uc, err := dial(ifc)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err
@@ -217,6 +222,64 @@ func (c *Conn) Probe() error { return c.send(mhed.BuildSearch()) }
 
 // SendSet sends a prebuilt cmd-3 set-network packet out every interface.
 func (c *Conn) SendSet(pkt []byte) error { return c.send(pkt) }
+
+// Sent is a set-network datagram that has gone out, with the sockets it left from still open. An ack does not
+// carry the device's MAC, only the requester's address and UDP source port echoed back — so when several devices
+// are being configured at once, the source port is the only thing that says which datagram an ack answers.
+// Holding the sockets open until the caller is done guarantees no two datagrams of a batch share a port.
+type Sent struct {
+	conns []*net.UDPConn
+	addrs []netip.AddrPort
+}
+
+// Matches reports whether a is the ack for this datagram.
+func (s *Sent) Matches(a Ack) bool {
+	for _, ap := range s.addrs {
+		if a.Port == ap.Port() && a.Requester == ap.Addr().String() {
+			return true
+		}
+	}
+	return false
+}
+
+// Close releases the send sockets.
+func (s *Sent) Close() {
+	for _, uc := range s.conns {
+		_ = uc.Close()
+	}
+	s.conns = nil
+}
+
+// SendSetTracked sends a prebuilt cmd-3 set-network packet out every interface, like SendSet, and returns a handle
+// that recognises the acks answering it. It fails only if the packet could not be sent on any interface. The
+// caller must Close the handle.
+func (c *Conn) SendSetTracked(pkt []byte) (*Sent, error) {
+	s := &Sent{}
+	var firstErr error
+	for _, ifc := range c.ifaces {
+		uc, err := dial(ifc)
+		if err == nil {
+			if _, err = uc.Write(pkt); err != nil {
+				_ = uc.Close()
+			}
+		}
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if la, ok := uc.LocalAddr().(*net.UDPAddr); ok {
+			ap := la.AddrPort()
+			s.addrs = append(s.addrs, netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port()))
+		}
+		s.conns = append(s.conns, uc)
+	}
+	if len(s.conns) == 0 {
+		return nil, firstErr
+	}
+	return s, nil
+}
 
 // Collect receives for the given duration, returning devices de-duplicated by MAC (newest wins) and any acks seen.
 func (c *Conn) Collect(d time.Duration) (map[string]*mhed.Device, []Ack) {
