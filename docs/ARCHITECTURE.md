@@ -22,6 +22,7 @@ internal/discovery/      the network: interfaces, multicast sockets, the receive
 internal/batch/          a change on several cameras: the plan (pure) and carrying it out
     plan.go              targets, validation, address conflicts
     run.go               send, match acks, wait for the re-announcements
+internal/neighbor/       is an address already in use? (the OS's neighbour table, no privileges)
 internal/fakecam/        the device side of the protocol (announce, ack, apply on correct password)
 testdata/vectors.json    known-good packets with their decoded meaning
 ```
@@ -301,6 +302,18 @@ of the devices already there announce (falling back to the subnet's first addres
 guess). Free addresses are taken right after the highest device already in the subnet so the cameras stay
 together, or from the top of an empty subnet downwards. "This network" has to be unambiguous, so `--rescue`
 refuses to run on more than one interface. The result is ordinary requests, so everything below applies unchanged.
+
+**Is the address really free? (`internal/neighbor`).** Discovery only sees cameras; a printer on the address a
+camera is about to get would go unnoticed, and an address conflict is a miserable thing to find on site. Checking
+needs ARP, and ARP needs no privileges if you let the kernel do it: `neighbor.InUse` sends a throwaway UDP datagram
+to each address (which makes the OS resolve it), waits about a second, and reads the OS's own neighbour table —
+`/proc/net/arp` on Linux, `arp -an` on macOS and the BSDs, `arp -a` on Windows. An address that resolved has an
+owner. The table is read before and after, and a "port unreachable" answer is noticed too, to tell a holder that
+showed itself just now from an entry that was merely cached (and may be stale). An owner whose MAC is a discovered
+camera is ignored — that case is the plan's own conflict check. It only works on-link, so a move into a subnet the
+computer is not on goes unchecked, and it yields warnings, not refusals: the cache can lag, and the operator may
+know better. A rescue, which picks its own addresses, feeds the occupied ones back into `Rescue` and picks again.
+The three table parsers are unit-tested from sample output; the Windows one has not been run on Windows.
 
 **Carrying it out (`run.go`).** With the canary on (the default), the first planned device is sent to alone and
 must confirm before the others are touched; if it doesn't, the rest are marked `not-sent`. The usual reason is a

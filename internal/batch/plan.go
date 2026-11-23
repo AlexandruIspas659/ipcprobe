@@ -218,6 +218,10 @@ func Build(devices map[string]*mhed.Device, reqs []Request) []Item {
 			it.Status = Unchanged
 			continue
 		}
+		if tgt.IP == tgt.Gateway && (it.changes("ip") || it.changes("gateway")) {
+			it.fail(fmt.Sprintf("%s would be both the camera's address and its gateway", tgt.IP))
+			continue
+		}
 		it.Status = Planned
 		if !tgt.Gateway.IsUnspecified() && !prefix.Contains(tgt.Gateway) {
 			it.Warnings = append(it.Warnings, fmt.Sprintf("gateway %s is outside %s", tgt.Gateway, prefix.Masked()))

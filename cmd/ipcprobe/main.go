@@ -14,6 +14,7 @@ import (
 	"github.com/AlexandruIspas659/ipcprobe/internal/batch"
 	"github.com/AlexandruIspas659/ipcprobe/internal/discovery"
 	"github.com/AlexandruIspas659/ipcprobe/internal/mhed"
+	"github.com/AlexandruIspas659/ipcprobe/internal/neighbor"
 )
 
 var version = "dev" // set via -ldflags "-X main.version=..."
@@ -58,11 +59,11 @@ func usage() {
   ipcprobe show --mac <mac> [--iface en0] [--timeout 5] [--json]
   ipcprobe set  --mac <mac> --ip <ip> --mask <mask> --gw <gw>
                 [--dns1 <ip>] [--dns2 <ip>] [--iface en0]
-                [--password <pw>] [--force] [--timeout 3] [--confirm-timeout 15] [--dump]
+                [--password <pw>] [--force] [--no-probe] [--timeout 3] [--confirm-timeout 15] [--dump]
   ipcprobe apply (--mac <mac>,<mac>,... | --all | --plan plan.json)
                 [--start-ip <ip> [--step 1] | --rescue] [--mask <mask>] [--gw <gw>] [--dns1 <ip>] [--dns2 <ip>]
                 [--iface en0] [--password <pw>] [--dry-run] [--yes] [--no-canary] [--json | --csv]
-                [--timeout 5] [--confirm-timeout 15] [--gap 0.25]
+                [--timeout 5] [--confirm-timeout 15] [--gap 0.25] [--no-probe]
   ipcprobe interfaces [--json]
 
 apply changes several cameras at once with one admin password. Whatever is not given is kept from each camera's
@@ -70,6 +71,10 @@ current configuration: --start-ip hands out consecutive addresses in the order t
 --gw / --mask / --dns1 / --dns2 alone change those fields in place. --plan takes a JSON array of
 {"mac","ip","mask","gateway","dns1","dns2"} objects (the shape of "list --json"). --dry-run shows what would
 happen and sends nothing.
+
+Before a camera is given a new address on this computer's own subnet, set and apply check that nothing else on
+the network holds it (cameras are known from discovery; for everything else the system's neighbour table is asked)
+and warn if something does. --no-probe skips that check.
 
 --rescue brings cameras that sit on a foreign subnet into this computer's own: each gets a free address there, with
 its mask and the gateway the cameras already on it use. With --all it takes every camera that needs it.
@@ -239,7 +244,7 @@ func cmdShow(args []string) int {
 }
 
 func cmdSet(args []string) int {
-	f, err := parseFlags(args, map[string]bool{"force": true, "dump": true})
+	f, err := parseFlags(args, map[string]bool{"force": true, "dump": true, "no-probe": true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 2
@@ -262,6 +267,10 @@ func cmdSet(args []string) int {
 	prefix, err := batch.CheckAddress(ip, mask)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
+		return 2
+	}
+	if ip == gw {
+		fmt.Fprintf(os.Stderr, "error: %s cannot be both the camera's address and its gateway\n", ip)
 		return 2
 	}
 	if !prefix.Contains(gw) {
@@ -328,6 +337,24 @@ func cmdSet(args []string) int {
 		return 1
 	} else {
 		fmt.Fprintf(os.Stderr, "warning: %s not seen in discovery, sending anyway (--force)\n", macText)
+	}
+
+	// Is the new address free? Another camera announcing it is known from discovery; anything else on this
+	// computer's own subnet is asked for through the neighbour table. Either way it is a warning, not a refusal:
+	// the operator may be mid-way through a shuffle, and the neighbour table can lag behind reality.
+	if cur := before[macText]; cur == nil || cur.IP != ip.String() {
+		for _, d := range discovery.SortedByMAC(before) {
+			if d.MAC != macText && d.IP == ip.String() {
+				fmt.Fprintf(os.Stderr, "warning: %s is already announced by %s (%s %q)\n", ip, d.MAC, d.Model, d.Name)
+			}
+		}
+		if !f.has("no-probe") && conn.OnLink(ip) {
+			if owners, err := neighbor.InUse([]netip.Addr{ip}, 1200*time.Millisecond); err != nil {
+				fmt.Fprintf(os.Stderr, "note: could not check whether %s is free: %v\n", ip, err)
+			} else if owner, ok := owners[ip]; ok && before[owner.MAC.String()] == nil {
+				fmt.Fprintln(os.Stderr, "warning:", inUseWarning(ip, owner))
+			}
+		}
 	}
 
 	pkt, err := mhed.BuildSetNetwork(mac, ip, mask, gw, dns1, dns2, password)

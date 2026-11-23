@@ -102,6 +102,13 @@ func TestBuildStatuses(t *testing.T) {
 
 func TestBuildRejectsBadMaskAndWarnsAboutGateway(t *testing.T) {
 	devs := fleet(dev(macA, "192.168.1.10"))
+	// The gateway's own address is not a camera address, whichever of the two is being changed.
+	if it := Build(devs, []Request{{MAC: macA, Config: Config{IP: ip("192.168.1.1")}}})[0]; it.Status != Invalid {
+		t.Errorf("camera moved onto its gateway's address: %+v", it)
+	}
+	if it := Build(devs, []Request{{MAC: macA, Config: Config{Gateway: ip("192.168.1.10")}}})[0]; it.Status != Invalid {
+		t.Errorf("gateway set to the camera's own address: %+v", it)
+	}
 	if it := Build(devs, []Request{{MAC: macA, Config: Config{Mask: ip("255.0.255.0")}}})[0]; it.Status != Invalid {
 		t.Errorf("non-contiguous mask accepted: %+v", it)
 	}

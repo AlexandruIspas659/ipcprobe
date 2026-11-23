@@ -7,10 +7,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/AlexandruIspas659/ipcprobe/internal/batch"
 	"github.com/AlexandruIspas659/ipcprobe/internal/discovery"
 	"github.com/AlexandruIspas659/ipcprobe/internal/mhed"
+	"github.com/AlexandruIspas659/ipcprobe/internal/neighbor"
 )
 
 // applyOutput is what `apply --json` prints: the plan (with --dry-run) or its outcome. The macOS app's batch sheet
@@ -26,7 +28,7 @@ type applyOutput struct {
 // Exit codes follow `set`: 0 every camera confirmed (or already had the configuration), 1 setup or environment
 // problem, 2 usage error, a plan that cannot be applied, or at least one camera not confirmed.
 func cmdApply(args []string) int {
-	f, err := parseFlags(args, map[string]bool{"all": true, "rescue": true, "dry-run": true, "json": true, "csv": true, "yes": true, "no-canary": true})
+	f, err := parseFlags(args, map[string]bool{"all": true, "rescue": true, "dry-run": true, "json": true, "csv": true, "yes": true, "no-canary": true, "no-probe": true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 2
@@ -151,7 +153,8 @@ func cmdApply(args []string) int {
 			return 1
 		}
 	}
-	gatewayAssumed := false
+	var rescueIn batch.RescueInput
+	var rescueMACs []string
 	if rescue {
 		// "This network" has to be one network: the subnet of the single interface in use.
 		used := conn.Ifaces()
@@ -159,14 +162,11 @@ func cmdApply(args []string) int {
 			return fail("--rescue brings cameras into this computer's network, and %d interfaces are in use (%s): choose one with --iface",
 				len(used), ifaceNames(used))
 		}
-		macs := make([]string, len(reqs))
-		for i, r := range reqs {
-			macs[i] = r.MAC
+		for _, r := range reqs {
+			rescueMACs = append(rescueMACs, r.MAC)
 		}
-		in := batch.RescueInput{Subnet: used[0].Net, Host: used[0].IP, Gateway: def.Gateway, DNS1: def.DNS1, DNS2: def.DNS2}
-		if reqs, gatewayAssumed, err = batch.Rescue(devs, macs, in); err != nil {
-			return fail("%v", err)
-		}
+		rescueIn = batch.RescueInput{Subnet: used[0].Net, Host: used[0].IP, Gateway: def.Gateway, DNS1: def.DNS1,
+			DNS2: def.DNS2, Taken: map[netip.Addr]bool{}}
 		fmt.Fprintf(os.Stderr, "bringing cameras into %s (%s)\n", used[0].Net, used[0].Name)
 	}
 	var seq []netip.Addr
@@ -175,27 +175,49 @@ func cmdApply(args []string) int {
 			return fail("%v", err)
 		}
 	}
-	for i := range reqs {
-		r := &reqs[i]
-		if seq != nil {
-			r.IP = seq[i]
-		}
-		// A plan entry's own value wins over a flag; a flag wins over the camera's current value.
-		for _, o := range []struct{ dst, def *netip.Addr }{
-			{&r.Mask, &def.Mask}, {&r.Gateway, &def.Gateway}, {&r.DNS1, &def.DNS1}, {&r.DNS2, &def.DNS2}} {
-			if !o.dst.IsValid() {
-				*o.dst = *o.def
-			}
-		}
-	}
 
-	items := batch.Build(devs, reqs)
-	if gatewayAssumed {
-		for i := range items {
-			if it := &items[i]; it.Status == batch.Planned {
-				it.Warnings = append(it.Warnings, fmt.Sprintf(
-					"gateway %s is a guess: no camera on this network to copy it from (set it with --gw)", it.Target.Gateway))
+	// Build the plan, then ask the network whether the addresses it hands out are really free (discovery only sees
+	// cameras). For addresses the user chose, an occupied one becomes a warning on that camera. A rescue chooses
+	// its own, so it simply chooses again without the occupied ones — a few rounds at most.
+	var items []batch.Item
+	for round := 1; ; round++ {
+		gatewayAssumed := false
+		if rescue {
+			if reqs, gatewayAssumed, err = batch.Rescue(devs, rescueMACs, rescueIn); err != nil {
+				return fail("%v", err)
 			}
+		}
+		for i := range reqs {
+			r := &reqs[i]
+			if seq != nil {
+				r.IP = seq[i]
+			}
+			// A plan entry's own value wins over a flag; a flag wins over the camera's current value.
+			for _, o := range []struct{ dst, def *netip.Addr }{
+				{&r.Mask, &def.Mask}, {&r.Gateway, &def.Gateway}, {&r.DNS1, &def.DNS1}, {&r.DNS2, &def.DNS2}} {
+				if !o.dst.IsValid() {
+					*o.dst = *o.def
+				}
+			}
+		}
+		items = batch.Build(devs, reqs)
+		if gatewayAssumed {
+			for i := range items {
+				if it := &items[i]; it.Status == batch.Planned {
+					it.Warnings = append(it.Warnings, fmt.Sprintf(
+						"gateway %s is a guess: no camera on this network to copy it from (set it with --gw)", it.Target.Gateway))
+				}
+			}
+		}
+		if f.has("no-probe") {
+			break
+		}
+		occupied := warnInUse(conn, devs, items)
+		if !rescue || len(occupied) == 0 || round == 5 {
+			break
+		}
+		for _, a := range occupied {
+			rescueIn.Taken[a] = true
 		}
 	}
 	out := applyOutput{DryRun: dry, Devices: items}
@@ -263,6 +285,50 @@ func cmdApply(args []string) int {
 		batch.Count(items, batch.Confirmed), batch.Count(items, batch.NotConfirmed), batch.Count(items, batch.NotSent),
 		batch.Count(items, batch.Unchanged), batch.Count(items, batch.NotSeen))
 	return exitFor(items)
+}
+
+// warnInUse checks the addresses the plan is about to hand out against the network itself, and adds a warning to
+// every camera whose new address is held by something that is not a camera discovery saw (those are the plan's own
+// business: batch.Build already refuses a clash between cameras). It returns the occupied addresses.
+//
+// Only addresses on this computer's own subnets can be checked; a move into a subnet it is not on goes unchecked.
+// A failure to check is reported once and is not an error: the check is a courtesy, not a gate.
+func warnInUse(conn *discovery.Conn, devs map[string]*mhed.Device, items []batch.Item) []netip.Addr {
+	var addrs []netip.Addr
+	for i := range items {
+		if it := &items[i]; it.Status == batch.Planned && it.Target.IP != it.Current.IP && conn.OnLink(it.Target.IP) {
+			addrs = append(addrs, it.Target.IP)
+		}
+	}
+	if len(addrs) == 0 {
+		return nil
+	}
+	owners, err := neighbor.InUse(addrs, 1200*time.Millisecond)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "note: could not check whether the new addresses are free: %v\n", err)
+		return nil
+	}
+	var occupied []netip.Addr
+	for i := range items {
+		it := &items[i]
+		if it.Status != batch.Planned || it.Target.IP == it.Current.IP {
+			continue
+		}
+		owner, ok := owners[it.Target.IP]
+		if !ok || devs[owner.MAC.String()] != nil {
+			continue
+		}
+		it.Warnings = append(it.Warnings, inUseWarning(it.Target.IP, owner))
+		occupied = append(occupied, it.Target.IP)
+	}
+	return occupied
+}
+
+func inUseWarning(a netip.Addr, owner neighbor.Owner) string {
+	if owner.Fresh {
+		return fmt.Sprintf("%s is in use by %s, which is not a camera this tool can see", a, owner.MAC)
+	}
+	return fmt.Sprintf("%s was in use by %s within the last few minutes (not a camera this tool can see; it may have left since)", a, owner.MAC)
 }
 
 // exitFor is 0 when every camera in the batch ended up with its target configuration, 2 otherwise.

@@ -85,6 +85,10 @@ ipcprobe interfaces [--json]
   subnet gets a free address in this computer's own, with its mask and the gateway the cameras already there use
   (`--gw` to say otherwise). `--all --rescue` takes every camera that needs it. With several interfaces up, say
   which network you mean with `--iface`.
+  Before sending, `set` and `apply` check that each new address is free: other cameras are known from discovery,
+  and for everything else on this computer's own subnet (a printer, a laptop, the recorder) the system's neighbour
+  table is asked. An address something already holds is a warning in the plan; `--rescue` just picks another one.
+  `--no-probe` skips the check.
   `--csv` prints the outcome as a spreadsheet instead of a table: each camera's old and new address and how it
   went (`ipcprobe apply … --csv > changes.csv`).
 
@@ -111,6 +115,7 @@ cmd/mhedpcap/          list / decode / diff MHED frames in a Wireshark capture (
 internal/mhed/         the protocol: packet build/parse, no I/O
 internal/discovery/    interfaces, multicast sockets, the receive loop (+ end-to-end test)
 internal/batch/        planning and carrying out a change on several cameras (`apply`)
+internal/neighbor/     is this address already in use? (asks the system's neighbour table; no privileges)
 internal/fakecam/      the device side of the protocol, used by cmd/fakecam and the tests
 testdata/vectors.json  sanitized conformance vectors — the contract any implementation must pass
 .goreleaser.yaml       multi-platform release build
