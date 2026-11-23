@@ -159,7 +159,7 @@ which is why the old `Formula/ipcprobe.rb` had to be deleted from the tap by han
 
 GoReleaser runs on Linux and cannot build a macOS app bundle (it needs `swift`, `codesign`, `lipo`, `hdiutil`).
 So `release.yml` has a second job, `macos-app`, with `needs: goreleaser`: it starts only once the release and its
-assets exist. On a `macos-14` runner it:
+assets exist. On a `macos-26` runner it:
 
 1. downloads `ipcprobe_darwin_all.tar.gz` **from the release just published** (`gh release download`), so the helper
    inside the app is the very binary the CLI users get — not a second build that might differ;

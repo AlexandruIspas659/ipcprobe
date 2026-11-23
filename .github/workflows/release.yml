@@ -34,7 +34,7 @@ jobs:
   # Uploads ipcprobe_<version>_macOS.dmg as one more asset on that release.
   macos-app:
     needs: goreleaser
-    runs-on: macos-14
+    runs-on: macos-26
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:

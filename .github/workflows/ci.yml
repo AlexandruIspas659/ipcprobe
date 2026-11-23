@@ -20,7 +20,7 @@ jobs:
 
   # Compiles the SwiftUI app and assembles the bundle (no dmg) so a Swift error is caught on push, not at release.
   macos-app:
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
