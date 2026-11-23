@@ -60,3 +60,17 @@ func TestBatchRows(t *testing.T) {
 		t.Errorf("not-seen row: %s", got)
 	}
 }
+
+func TestDescribeChange(t *testing.T) {
+	old := mhed.Device{MAC: "02:00:00:00:00:01", IP: "192.168.1.88", Gateway: "192.168.1.1", Name: "DVC", HTTP: 80}
+	cur := old
+	cur.IP, cur.Gateway, cur.HTTP = "192.168.1.100", "192.168.1.254", 8080
+	if got := describeChange(old, cur); got != "ip 192.168.1.88 -> 192.168.1.100, gateway 192.168.1.1 -> 192.168.1.254, http 80 -> 8080" {
+		t.Errorf("describeChange: %q", got)
+	}
+	cur = old
+	cur.Src = "192.168.1.99" // not a field anyone configures
+	if got := describeChange(old, cur); got != "announcement changed" {
+		t.Errorf("describeChange with only an unlisted difference: %q", got)
+	}
+}

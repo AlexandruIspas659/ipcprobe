@@ -37,6 +37,8 @@ func run(args []string) int {
 		return cmdSet(args[1:])
 	case "apply":
 		return cmdApply(args[1:])
+	case "watch":
+		return cmdWatch(args[1:])
 	case "interfaces":
 		return cmdInterfaces(args[1:])
 	case "-h", "--help", "help":
@@ -64,7 +66,11 @@ func usage() {
                 [--start-ip <ip> [--step 1] | --rescue] [--mask <mask>] [--gw <gw>] [--dns1 <ip>] [--dns2 <ip>]
                 [--iface en0] [--password <pw>] [--dry-run] [--yes] [--no-canary] [--json | --csv]
                 [--timeout 5] [--confirm-timeout 15] [--gap 0.25] [--no-probe]
+  ipcprobe watch [--iface en0] [--json] [--expire 15]
   ipcprobe interfaces [--json]
+
+watch keeps listening and prints cameras as they appear, change and go quiet, until interrupted. With --json it
+prints the whole list as one JSON object per line whenever it changes.
 
 apply changes several cameras at once with one admin password. Whatever is not given is kept from each camera's
 current configuration: --start-ip hands out consecutive addresses in the order the cameras are listed, while

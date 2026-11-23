@@ -10,6 +10,8 @@ code that sends and receives them.
 cmd/ipcprobe/            the executable: argument parsing, printing, exit codes
     main.go              list / show / set / interfaces
     apply.go             apply: several cameras at once
+    watch.go             watch: the list, live
+    export.go            --csv
     password.go          reading the admin password without echo
 cmd/fakecam/             dev tool: run a software camera on an interface
 cmd/mhedpcap/            dev tool: list / decode / diff MHED frames in a capture
@@ -332,6 +334,17 @@ there. Otherwise the password is read (one for all — a plan file never contain
 confirm, and the result is printed as a table or, with `--json`, as the items themselves. A piped stdin without
 `--yes` is refused before anything happens: a wrapper has to preview first and then say so. Exit codes are
 `set`'s: 0 everything confirmed or already as requested, 2 otherwise.
+
+### `watch` — the list, live
+
+`list` is one look; `watch` keeps looking. The loop is `Collect` in one-second windows with a search every third
+window, and all the judgement is in `discovery.Tracker`, which has no clock or sockets of its own: fed what each
+window heard and when, it says which devices appeared, which announce something different from before, and which
+have been silent for longer than `Expire` (15 s by default — a device being reconfigured goes quiet while it
+restarts its network, and should come back as "changed", not "gone" and "appeared"). Without `--json` each change
+is a line. With `--json` the whole list is printed as one object per line whenever it changes, and at least every
+ten seconds regardless: a reader can tell the watcher is alive, and the watcher finds out its reader is gone the
+next time it writes. The app's live list is that stream.
 
 ### `password.go`
 

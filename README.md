@@ -60,6 +60,7 @@ ipcprobe apply --mac <mac>,<mac>,... --start-ip 192.168.1.100          # consecu
 ipcprobe apply --all --gw 192.168.1.254 --dns1 192.168.1.254            # same change on every camera, in place
 ipcprobe apply --plan plan.json                                         # an explicit address per camera
 ipcprobe apply --all --rescue                                           # bring stranded cameras into this subnet
+ipcprobe watch [--iface en0] [--json]                                   # keep listening; report changes live
 ipcprobe interfaces [--json]
 ```
 
@@ -67,6 +68,9 @@ ipcprobe interfaces [--json]
   emits machine-readable output. A Note column appears when there is something to point out: a camera on another
   subnet than this computer (reachable by this tool, not by IP), or several cameras announcing the same address.
   `--csv` writes the list as a spreadsheet — for the site's documentation, or for whoever sets up the recorder.
+- `watch` — keep listening and print cameras as they appear, change their configuration, or go quiet (silent for
+  `--expire` seconds, 15 by default), until you press Ctrl-C. Leave it running while you work on a site. `--json`
+  prints the whole list as one JSON object per line whenever it changes.
 - `show` — every field for one camera, including its `http://` and `rtsp://` URLs.
 - `interfaces` — the interfaces `--iface` accepts (up, multicast-capable, with an IPv4 address).
 - `set` — change a camera's network config. Prompts for the admin password (never echoed, never written to disk or

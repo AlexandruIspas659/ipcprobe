@@ -30,6 +30,8 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
   `apply` (and so the app's preview) check that nothing else holds it — not only other cameras, but anything on
   the network, by way of the system's neighbour table. An occupied address is a warning in the plan, and a rescue
   picks a different one. `--no-probe` skips the check.
+- **Live list.** `ipcprobe watch` keeps listening and reports cameras as they appear, change and go quiet;
+  `--json` streams the whole list, one object per line, whenever it changes.
 - `fakecam --count N [--same-ip]` runs several software cameras, for trying a batch without hardware.
 
 ### Fixed
