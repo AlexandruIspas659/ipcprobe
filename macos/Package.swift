@@ -10,6 +10,13 @@ let package = Package(
         .executableTarget(
             name: "IPCProbe",
             path: "Sources/IPCProbe"
+        ),
+        // Unit tests for the app's own logic (ordering, filtering, export formatting). Nothing here touches the
+        // network: that is the helper's job and is covered by the Go tests.
+        .testTarget(
+            name: "IPCProbeTests",
+            dependencies: ["IPCProbe"],
+            path: "Tests/IPCProbeTests"
         )
     ]
 )

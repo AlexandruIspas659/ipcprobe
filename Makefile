@@ -1,4 +1,4 @@
-.PHONY: build test test-short fakecam mhedpcap app run-app snapshot clean
+.PHONY: build test test-short test-app fakecam mhedpcap app run-app snapshot clean
 
 build:
 	go build -o ipcprobe ./cmd/ipcprobe
@@ -9,6 +9,10 @@ test:
 # unit + vectors only (skips the end-to-end multicast test)
 test-short:
 	go test -short ./...
+
+# the macOS app's own unit tests (ordering, formatting — no network)
+test-app:
+	macos/test.sh
 
 fakecam:
 	go build -o fakecam ./cmd/fakecam
