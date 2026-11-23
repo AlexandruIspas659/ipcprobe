@@ -26,7 +26,7 @@ type applyOutput struct {
 // Exit codes follow `set`: 0 every camera confirmed (or already had the configuration), 1 setup or environment
 // problem, 2 usage error, a plan that cannot be applied, or at least one camera not confirmed.
 func cmdApply(args []string) int {
-	f, err := parseFlags(args, map[string]bool{"all": true, "rescue": true, "dry-run": true, "json": true, "yes": true, "no-canary": true})
+	f, err := parseFlags(args, map[string]bool{"all": true, "rescue": true, "dry-run": true, "json": true, "csv": true, "yes": true, "no-canary": true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 2
@@ -35,7 +35,10 @@ func cmdApply(args []string) int {
 		fmt.Fprintf(os.Stderr, "error: "+format+"\n", a...)
 		return 2
 	}
-	dry, asJSON := f.has("dry-run"), f.has("json")
+	dry, asJSON, asCSV := f.has("dry-run"), f.has("json"), f.has("csv")
+	if asJSON && asCSV {
+		return fail("choose one of --json and --csv")
+	}
 
 	selectors := 0
 	for _, k := range []string{"mac", "all", "plan"} {
@@ -197,9 +200,14 @@ func cmdApply(args []string) int {
 	}
 	out := applyOutput{DryRun: dry, Devices: items}
 	report := func() {
-		if asJSON {
+		switch {
+		case asJSON:
 			printJSON(out)
-		} else {
+		case asCSV:
+			if err := writeCSV(os.Stdout, batchRows(items)); err != nil {
+				fmt.Fprintln(os.Stderr, "error:", err)
+			}
+		default:
 			printBatch(os.Stdout, items)
 		}
 	}

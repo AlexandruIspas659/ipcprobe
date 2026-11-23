@@ -52,7 +52,7 @@ go build -o ipcprobe ./cmd/ipcprobe   # standard library only; no network needed
 ## Usage
 
 ```
-ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json]
+ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json | --csv]
 ipcprobe show --mac 58:5b:69:00:00:01 [--iface en0] [--json]
 ipcprobe set  --mac 58:5b:69:00:00:01 --ip 192.168.1.68 --mask 255.255.255.0 --gw 192.168.1.1 \
               [--dns1 ...] [--dns2 ...] [--iface en0] [--password ...] [--force]
@@ -66,6 +66,7 @@ ipcprobe interfaces [--json]
 - `list` — discover every camera on the segment; `--wide` adds HTTP/RTSP port and firmware build date, `--json`
   emits machine-readable output. A Note column appears when there is something to point out: a camera on another
   subnet than this computer (reachable by this tool, not by IP), or several cameras announcing the same address.
+  `--csv` writes the list as a spreadsheet — for the site's documentation, or for whoever sets up the recorder.
 - `show` — every field for one camera, including its `http://` and `rtsp://` URLs.
 - `interfaces` — the interfaces `--iface` accepts (up, multicast-capable, with an IPv4 address).
 - `set` — change a camera's network config. Prompts for the admin password (never echoed, never written to disk or
@@ -84,6 +85,8 @@ ipcprobe interfaces [--json]
   subnet gets a free address in this computer's own, with its mask and the gateway the cameras already there use
   (`--gw` to say otherwise). `--all --rescue` takes every camera that needs it. With several interfaces up, say
   which network you mean with `--iface`.
+  `--csv` prints the outcome as a spreadsheet instead of a table: each camera's old and new address and how it
+  went (`ipcprobe apply … --csv > changes.csv`).
 
 On macOS, the wired camera interface is usually `en0` for built-in Ethernet or `en5`/`en6` for a USB‑C adapter
 (`ifconfig` to check). The first run triggers the system's Local Network permission prompt — allow it.
