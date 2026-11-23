@@ -26,10 +26,15 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
 - **Export.** `list --csv` and `apply --csv` write the device list, or a batch's outcome (old and new address per
   camera), as a spreadsheet. In the app, a finished batch offers Copy Results and Save as CSV…, and the Cameras
   menu has Copy Camera List (⇧⌘C) and Export Camera List as CSV… (⇧⌘E).
+- **Address-in-use check.** Before a camera is given a new address on this computer's own subnet, `set` and
+  `apply` (and so the app's preview) check that nothing else holds it — not only other cameras, but anything on
+  the network, by way of the system's neighbour table. An occupied address is a warning in the plan, and a rescue
+  picks a different one. `--no-probe` skips the check.
 - `fakecam --count N [--same-ip]` runs several software cameras, for trying a batch without hardware.
 
 ### Fixed
 
+- A camera can no longer be given its gateway's address (or its own address as gateway).
 - `set` could report "confirmed" for a change that had not happened. It only checked that the camera announced
   at the requested IP, so a change that kept the address (a new gateway or DNS server) was confirmed immediately,
   even with a wrong password. It now waits for the camera to announce the whole requested configuration.

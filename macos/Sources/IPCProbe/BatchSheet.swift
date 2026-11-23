@@ -249,7 +249,11 @@ struct BatchSheet: View {
     private func statusCell(_ it: BatchItem) -> some View {
         switch it.status {
         case "planned":
-            Label("will change", systemImage: "arrow.right.circle").foregroundStyle(.blue)
+            if it.warnings.isEmpty {
+                Label("will change", systemImage: "arrow.right.circle").foregroundStyle(.blue)
+            } else {
+                Label("will change, see warning", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
         case "unchanged":
             Label("already set", systemImage: "equal.circle").foregroundStyle(.secondary)
         case "confirmed":
@@ -308,8 +312,15 @@ struct BatchSheet: View {
             } else if count("planned") == 0 {
                 Label("Nothing to change.", systemImage: "equal.circle").foregroundStyle(.secondary)
             } else {
-                Text("\(count("planned")) camera\(count("planned") == 1 ? "" : "s") will be changed.")
-                    .foregroundStyle(.secondary)
+                let planned = count("planned")
+                let warned = items.filter { $0.status == "planned" && !$0.warnings.isEmpty }.count
+                if warned > 0 {
+                    // Typically an address something else on the network already holds: worth reading before Apply.
+                    Label("\(planned) camera\(planned == 1 ? "" : "s") will be changed — \(warned) with a warning, read it first.",
+                          systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                } else {
+                    Text("\(planned) camera\(planned == 1 ? "" : "s") will be changed.").foregroundStyle(.secondary)
+                }
             }
         }
     }
