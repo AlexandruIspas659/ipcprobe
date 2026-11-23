@@ -56,6 +56,9 @@ ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json]
 ipcprobe show --mac 58:5b:69:00:00:01 [--iface en0] [--json]
 ipcprobe set  --mac 58:5b:69:00:00:01 --ip 192.168.1.68 --mask 255.255.255.0 --gw 192.168.1.1 \
               [--dns1 ...] [--dns2 ...] [--iface en0] [--password ...] [--force]
+ipcprobe apply --mac <mac>,<mac>,... --start-ip 192.168.1.100          # consecutive addresses
+ipcprobe apply --all --gw 192.168.1.254 --dns1 192.168.1.254            # same change on every camera, in place
+ipcprobe apply --plan plan.json                                         # an explicit address per camera
 ipcprobe interfaces [--json]
 ```
 
@@ -65,7 +68,16 @@ ipcprobe interfaces [--json]
 - `interfaces` — the interfaces `--iface` accepts (up, multicast-capable, with an IPv4 address).
 - `set` — change a camera's network config. Prompts for the admin password (never echoed, never written to disk or
   logs; read silently from stdin when piped, e.g. by the app). It refuses to fire at a MAC it can't currently see (`--force` overrides), then confirms by waiting for the
-  camera's ack and its re-announcement at the new IP; exit code 2 if that doesn't happen (e.g. wrong password).
+  camera's ack and its re-announcement with the new configuration; exit code 2 if that doesn't happen (e.g. wrong
+  password).
+- `apply` — change several cameras at once, with one admin password. Anything you don't give is kept from each
+  camera's current configuration, so `--start-ip` numbers a row of new cameras (in the order listed, `--step` apart)
+  and `--mask` / `--gw` / `--dns1` / `--dns2` alone change those in place. `--plan` takes a JSON array of
+  `{"mac","ip","mask","gateway","dns1","dns2"}` — the shape of `list --json`, so you can save that, edit it and feed
+  it back. It shows the plan and asks before sending (`--dry-run` only shows it; `--yes` skips the question), refuses
+  a plan that would put two devices on one address, and tries the first camera alone before the rest so a wrong
+  password reaches one camera, not all of them (`--no-canary` to send everything at once). Cameras with different
+  passwords go in separate runs.
 
 On macOS, the wired camera interface is usually `en0` for built-in Ethernet or `en5`/`en6` for a USB‑C adapter
 (`ifconfig` to check). The first run triggers the system's Local Network permission prompt — allow it.
@@ -89,6 +101,7 @@ cmd/fakecam/           a software camera for testing without hardware (dev tool,
 cmd/mhedpcap/          list / decode / diff MHED frames in a Wireshark capture (dev tool, not released)
 internal/mhed/         the protocol: packet build/parse, no I/O
 internal/discovery/    interfaces, multicast sockets, the receive loop (+ end-to-end test)
+internal/batch/        planning and carrying out a change on several cameras (`apply`)
 internal/fakecam/      the device side of the protocol, used by cmd/fakecam and the tests
 testdata/vectors.json  sanitized conformance vectors — the contract any implementation must pass
 .goreleaser.yaml       multi-platform release build
@@ -99,6 +112,7 @@ testdata/vectors.json  sanitized conformance vectors — the contract any implem
 ```
 go test ./...                              # unit + vectors + end-to-end (needs a multicast-capable interface)
 go run ./cmd/fakecam --iface en0           # software camera; then `ipcprobe list` / `set` in another terminal
+go run ./cmd/fakecam --count 5 --same-ip   # five of them on one address, for trying `ipcprobe apply`
 go run ./cmd/mhedpcap list capture.pcapng  # inspect a Wireshark capture; `show`/`diff --frame N` for one frame
 make app                                   # macOS: build macos/dist/ipcprobe.app and the .dmg
 ```

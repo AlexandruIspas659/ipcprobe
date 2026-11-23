@@ -10,6 +10,7 @@ Sources/IPCProbe/
   ContentView.swift        toolbar (interface, listen time, rescan), device table, status bar
   DeviceDetail.swift       every field of the selected camera; open web UI / copy RTSP URL / change network
   SetNetworkSheet.swift    the change-network form; shows the helper's progress and verdict
+  BatchSheet.swift         the same for several selected cameras: preview, then apply
   Model/Device.swift       Codable mirrors of the helper's JSON (mhed.Device, interfaces)
   Model/ProbeRunner.swift  runs the helper: finds it, pipes the password over stdin, streams stderr
   Model/AppModel.swift     app state: interfaces, devices, scan, set
@@ -25,6 +26,12 @@ icon/                      the app icon: draw.py renders it, build_icns.py assem
 | interface picker | `ipcprobe interfaces --json` | same selection rules as `--iface` |
 | Rescan | `ipcprobe list --json --timeout N [--iface IP]` | stdout = JSON array of devices |
 | Change network | `ipcprobe set --mac … --ip … --mask … --gw … [--dns1 --dns2 --iface --force]` | **password on stdin**, never on the command line; stderr lines are shown live; exit 0 confirmed / 2 not confirmed / 1 setup error |
+| Batch: Preview | `ipcprobe apply --mac a,b,c --json --dry-run [--start-ip … --step … --mask … --gw … --dns1 … --dns2 …]` | stdout = `{dry_run, devices:[…]}`: each camera's current and target configuration, status, warnings; nothing is sent |
+| Batch: Apply | the same flags with `--yes` instead of `--dry-run` (and `--no-canary` if the box is unticked) | **password on stdin**; stderr lines are shown live; stdout = the same JSON with each camera's outcome |
+
+Select several rows (⌘-click, ⇧-click) to get the batch sheet. Cameras are passed in the order the table shows
+them, so consecutive addresses follow what is on screen — sort the table first to choose the order. Apply is only
+offered for a preview of exactly what the form says; editing a field means previewing again.
 
 The helper reads the password silently when stdin is not a terminal (see `cmd/ipcprobe/password.go`), so it never
 appears in `ps`, in logs, or on disk. The sheet clears its own copy the moment the helper has been started.

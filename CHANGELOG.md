@@ -2,6 +2,31 @@
 
 All notable changes to ipcprobe. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Batch changes.** `ipcprobe apply` changes several cameras at once with one admin password. Whatever is not
+  given is kept from each camera's current configuration: `--start-ip` hands out consecutive addresses,
+  `--mask` / `--gw` / `--dns1` / `--dns2` alone change those in place, and `--plan` takes an explicit JSON list
+  (the shape of `list --json`). It previews the plan (`--dry-run`), refuses one that would put two devices on the
+  same address, tries the first camera alone so a wrong password reaches one camera instead of all of them, and
+  reports per camera whether the change was confirmed.
+- macOS app: the device table is multi-select; several selected cameras open a batch sheet with a preview of
+  every camera's old and new configuration before anything is sent. A new Cameras menu and two toolbar buttons
+  give Select All (⌥⌘A) and Change Network (⌘E).
+- `fakecam --count N [--same-ip]` runs several software cameras, for trying a batch without hardware.
+
+### Fixed
+
+- `set` could report "confirmed" for a change that had not happened. It only checked that the camera announced
+  at the requested IP, so a change that kept the address (a new gateway or DNS server) was confirmed immediately,
+  even with a wrong password. It now waits for the camera to announce the whole requested configuration.
+
+- VPN tunnels are no longer offered as usable interfaces. macOS flags `utun` interfaces as multicast-capable, so
+  they slipped through the filter and showed up in `ipcprobe interfaces`, in the app's interface picker, and in the
+  "all interfaces" default. Point-to-point interfaces are now excluded outright; `--iface utunN` still explains why.
+
 ## [0.3.2] — 2026-09-22
 
 macOS app only; the CLI is unchanged.

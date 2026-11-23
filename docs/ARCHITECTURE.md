@@ -8,7 +8,8 @@ code that sends and receives them.
 
 ```
 cmd/ipcprobe/            the executable: argument parsing, printing, exit codes
-    main.go              list / show / set
+    main.go              list / show / set / interfaces
+    apply.go             apply: several cameras at once
     password.go          reading the admin password without echo
 cmd/fakecam/             dev tool: run a software camera on an interface
 cmd/mhedpcap/            dev tool: list / decode / diff MHED frames in a capture
@@ -18,11 +19,15 @@ internal/mhed/           the protocol: bytes <-> structs. No sockets, no I/O.
 internal/discovery/      the network: interfaces, multicast sockets, the receive loop
     discovery.go
     discovery_test.go    end-to-end test against the fake camera, over real sockets
+internal/batch/          a change on several cameras: the plan (pure) and carrying it out
+    plan.go              targets, validation, address conflicts
+    run.go               send, match acks, wait for the re-announcements
 internal/fakecam/        the device side of the protocol (announce, ack, apply on correct password)
 testdata/vectors.json    known-good packets with their decoded meaning
 ```
 
-Three layers, each only allowed to depend on the one below it:
+Three layers, each only allowed to depend on the one below it (`internal/batch` sits between the command line and
+`discovery`, and is used by `apply` and, for its validation and comparison helpers, by `set`):
 
 ```
 cmd/ipcprobe  ──uses──▶  internal/discovery  ──uses──▶  internal/mhed
@@ -153,10 +158,11 @@ design of this package follows from that: everything is per-interface.
 ### Interfaces: `Interfaces()` and `Choose()`
 
 `Interfaces()` asks the OS for its network interfaces and keeps the ones that are up, not loopback, multicast-capable,
-and have an IPv4 address. It returns an `Iface` per address: name (`en0`), the IP, the subnet (`192.168.1.0/24`) and
+not point-to-point, and have an IPv4 address. It returns an `Iface` per address: name (`en0`), the IP, the subnet (`192.168.1.0/24`) and
 the underlying `*net.Interface` needed later to join a group on it. A Mac typically has several — Wi‑Fi, wired,
-Thunderbolt bridge, VPN tunnels — and the filter throws out the ones that can't do multicast (tunnels are
-point-to-point without the multicast flag).
+Thunderbolt bridge, VPN tunnels — and the filter throws out the ones that can't carry the protocol. Tunnels are
+excluded by the point-to-point flag, not the multicast one: macOS marks `utun` interfaces `MULTICAST` even though
+they are routed links that never reach the cameras' segment.
 
 `Choose(ifaceArg, prefer...)` decides which of those to use:
 
@@ -261,14 +267,49 @@ way.
 4. **Build and send.** `BuildSetNetwork` → `--dump` (prints the packet as hex with the password bytes masked as
    `**`, so a debug log never leaks it) → `SendSet` on the chosen interfaces.
 5. **Confirm.** Up to `--confirm-timeout` seconds (default 15), the loop re-probes and collects in 2‑second windows.
-   An ack sets a flag and prints "received the command" once. Success is *only* the target MAC announcing with the
-   requested IP — that line goes to stdout and the exit code is 0. If the deadline passes: exit 2 with a hint that
+   An ack sets a flag and prints "received the command" once. Success is *only* the target MAC announcing the whole
+   requested configuration — IP, mask, gateway and both DNS servers (`batch.Config.Matches`). Comparing the IP alone
+   is not enough: a change that keeps the address would look confirmed before the camera had done anything, wrong
+   password or not. That line goes to stdout and the exit code is 0. If the deadline passes: exit 2 with a hint that
    depends on whether an ack was seen. No ack → the packet probably never reached the camera (wrong interface, wrong
    VLAN). Ack but no re-announce → the camera got it but didn't apply it, which is almost always a wrong password —
    or occasionally just a slow camera, which is why the message says to run `list` rather than asserting failure.
 
 Observed on real hardware: a camera re-announces at its new address within a few seconds on the same subnet, and
 can take longer when changing subnet; 15 s covers both with margin.
+
+### `apply` — several cameras at once
+
+The protocol has no batch command; a batch is one set-network datagram per MAC. What `apply` adds is everything
+around that, and most of it lives in `internal/batch` so it can be tested without a terminal.
+
+**The plan (`plan.go`, pure).** A `Request` names a MAC and gives any subset of IP / mask / gateway / DNS1 / DNS2;
+`Build` overlays it on what the device currently announces. That one rule — *unspecified means keep* — covers both
+uses: numbering new cameras (`--start-ip`, turned into one IP per request by `Sequence`) and changing a gateway or
+DNS server in place (no request carries an IP). Each request becomes an `Item` with a status: `planned`,
+`unchanged` (nothing to send), `not-seen` (not announcing, so there is no current configuration to build on) or
+`invalid`. Validation is the same as `set`'s (`CheckAddress`), plus a conflict check: a device that changes address
+must not land on the *final* address of any other discovered device — its target if it is in the batch, its
+current address otherwise. Using final addresses is what lets a swap or a shift through while still catching two
+cameras given the same address. One `invalid` item blocks the whole batch: nothing is sent.
+
+**Carrying it out (`run.go`).** With the canary on (the default), the first planned device is sent to alone and
+must confirm before the others are touched; if it doesn't, the rest are marked `not-sent`. The usual reason is a
+mistyped password, and this way it reaches one camera instead of the fleet. The others are then sent `--gap` apart
+and confirmed together in one window, so a batch takes about as long as two single sets, not one per camera.
+Confirmation is the same rule as `set`: the MAC re-announcing the whole target configuration.
+
+**Whose ack is it?** An ack carries no MAC — only the requester's IP and UDP source port, echoed back. With one
+`set` that doesn't matter; with several in flight it does, especially when factory-fresh cameras all answer from
+the same address. So each datagram of a batch leaves from its own socket, kept open until the round is over
+(`discovery.SendSetTracked`), and an ack is matched to a device by the port it echoes. That is what lets the report
+say, per camera, "received but not applied" versus "never reached it".
+
+**The command (`apply.go`).** Flags or a `--plan` file become requests; the plan is printed; `--dry-run` stops
+there. Otherwise the password is read (one for all — a plan file never contains one), the user is asked to
+confirm, and the result is printed as a table or, with `--json`, as the items themselves. A piped stdin without
+`--yes` is refused before anything happens: a wrapper has to preview first and then say so. Exit codes are
+`set`'s: 0 everything confirmed or already as requested, 2 otherwise.
 
 ### `password.go`
 
@@ -290,7 +331,9 @@ set `--iface` accepts, with the same rules, instead of reimplementing them.
 
 A SwiftUI front end with **no network code**. It bundles the CLI binary at `Contents/MacOS/ipcprobe-cli` and runs it:
 `interfaces --json` for the picker, `list --json` for the table, `set` for the change-network sheet, with the
-password written to the helper's stdin and its stderr streamed into the sheet as progress. The helper's exit code
+password written to the helper's stdin and its stderr streamed into the sheet as progress. Selecting several rows
+offers the batch sheet, which is `apply --json`: once with `--dry-run` to show the helper's own plan, then with
+`--yes` to carry it out. The helper's exit code
 is the verdict (0 confirmed, 2 not confirmed, 1 setup error). Everything below the UI is therefore covered by the Go
 tests, and the app cannot drift from the CLI. `macos/README.md` has the file map, the build, and the permission and
 signing story.
