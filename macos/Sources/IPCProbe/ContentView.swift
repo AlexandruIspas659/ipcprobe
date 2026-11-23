@@ -2,27 +2,31 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var showSetSheet = false
 
     var body: some View {
         HSplitView {
             deviceTable
                 .frame(minWidth: 560)
-            DeviceDetail(device: model.selectedDevice, onChangeNetwork: { showSetSheet = true })
+            DeviceDetail(device: model.selectedDevice, selected: model.selectedDevices,
+                         onChangeNetwork: { model.changeNetwork() },
+                         onChangeBatch: { model.changeNetwork() })
                 .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
         }
         .toolbar { toolbarContent }
         .safeAreaInset(edge: .bottom) { statusBar }
-        .sheet(isPresented: $showSetSheet) {
-            if let d = model.selectedDevice {
-                SetNetworkSheet(device: d)
-                    .environmentObject(model)
-            }
+        .sheet(item: $model.editing) { d in
+            SetNetworkSheet(device: d)
+                .environmentObject(model)
+        }
+        .sheet(item: $model.batch) { b in
+            BatchSheet(devices: b.devices)
+                .environmentObject(model)
         }
     }
 
     private var deviceTable: some View {
-        // Columns declared with `value:` are sortable: clicking a header updates model.sortOrder, and the row
+        // The selection is a Set, so the table is multi-select: ⌘-click or ⇧-click several cameras to change them
+        // together. Columns declared with `value:` are sortable: clicking a header updates model.sortOrder, and the row
         // below re-sorts the list. IP and Gateway sort by their numeric value (so .9 comes before .134) while
         // still showing the dotted string.
         Table(model.devices, selection: $model.selection, sortOrder: $model.sortOrder) {
@@ -77,7 +81,26 @@ struct ContentView: View {
             .pickerStyle(.segmented)
             .help("How long to collect announcements. Cameras announce every few seconds; 5 s catches all of them.")
         }
-        ToolbarItem(placement: .primaryAction) {
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button {
+                model.selectAll()
+            } label: {
+                Label("Select All", systemImage: "checklist")
+            }
+            .labelStyle(.titleAndIcon)   // toolbars show icons only by default; these two need their words
+            .disabled(model.devices.isEmpty)
+            .help("Select every camera in the list (⌥⌘A). ⌘-click or ⇧-click rows to pick some of them.")
+
+            Button {
+                model.changeNetwork()
+            } label: {
+                Label(model.selection.count > 1 ? "Change \(model.selection.count) Cameras…" : "Change Network…",
+                      systemImage: "square.and.pencil")
+            }
+            .labelStyle(.titleAndIcon)
+            .disabled(model.selection.isEmpty)
+            .help("Change the network configuration of the selected camera, or of all selected cameras together (⌘E).")
+
             Button {
                 Task { await model.scan() }
             } label: {
@@ -100,7 +123,7 @@ struct ContentView: View {
             } else if model.isScanning {
                 Text("Listening for \(Int(model.timeout)) s…")
             } else if let t = model.lastScan {
-                Text("\(model.devices.count) device\(model.devices.count == 1 ? "" : "s") · scanned \(t.formatted(date: .omitted, time: .standard))")
+                Text("\(model.devices.count) device\(model.devices.count == 1 ? "" : "s")\(model.selection.count > 1 ? " · \(model.selection.count) selected" : "") · scanned \(t.formatted(date: .omitted, time: .standard))")
             } else {
                 Text("Ready")
             }

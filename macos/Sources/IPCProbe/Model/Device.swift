@@ -58,3 +58,38 @@ struct NetInterface: Codable, Identifiable, Hashable {
     var id: String { ip }
     var label: String { "\(name)  \(ip)" }
 }
+
+/// One network configuration, as `ipcprobe apply --json` emits it (`batch.Config` in Go).
+struct BatchConfig: Codable, Hashable {
+    var ip: String
+    var mask: String
+    var gateway: String
+    var dns1: String
+    var dns2: String
+}
+
+/// One camera of a batch: what it has, what it should get, and how that went (`batch.Item` in Go).
+/// `status` is one of planned, unchanged, not-seen, invalid, confirmed, not-confirmed, not-sent.
+struct BatchItem: Codable, Hashable {
+    var mac: String
+    var name: String
+    var model: String
+    var current: BatchConfig?
+    var target: BatchConfig?
+    var changes: [String]
+    var status: String
+    var acked: Bool
+    var warnings: [String]
+    var error: String?
+}
+
+/// What `ipcprobe apply --json` prints: the plan (with `--dry-run`) or its outcome.
+struct BatchOutput: Codable {
+    var dryRun: Bool
+    var devices: [BatchItem]
+
+    enum CodingKeys: String, CodingKey {
+        case dryRun = "dry_run"
+        case devices
+    }
+}

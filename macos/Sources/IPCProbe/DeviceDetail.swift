@@ -2,13 +2,19 @@ import SwiftUI
 import AppKit
 
 struct DeviceDetail: View {
+    /// The one selected camera, or nil when none or several are selected.
     var device: Device?
+    /// Every selected camera, in table order.
+    var selected: [Device] = []
     var onChangeNetwork: () -> Void
+    var onChangeBatch: () -> Void = {}
 
     var body: some View {
         Group {
             if let d = device {
                 details(d)
+            } else if selected.count > 1 {
+                several(selected)
             } else {
                 VStack {
                     Spacer()
@@ -52,6 +58,34 @@ struct DeviceDetail: View {
                     }
                     Button("Change network…", action: onChangeNetwork)
                         .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.system(.body, design: .monospaced))
+    }
+
+    /// Several cameras selected: what they are, and the way into the batch sheet.
+    private func several(_ ds: [Device]) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(ds.count) cameras selected").font(.title2).bold()
+                    Text("Change them together with one admin password.").foregroundStyle(.secondary)
+                }
+                section("Actions") {
+                    Button("Change network of \(ds.count) cameras…", action: onChangeBatch)
+                        .buttonStyle(.borderedProminent)
+                }
+                section("Selected, in table order") {
+                    ForEach(ds) { d in
+                        HStack(alignment: .top) {
+                            Text(d.ip).frame(width: 120, alignment: .leading)
+                            Text(d.name.isEmpty ? d.model : d.name).foregroundStyle(.secondary)
+                        }
+                        .font(.system(.callout, design: .monospaced))
+                    }
                 }
             }
             .padding(16)

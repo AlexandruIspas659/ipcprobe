@@ -17,6 +17,16 @@ struct IPCProbeApp: App {
                     .keyboardShortcut("r", modifiers: .command)
                     .disabled(model.isScanning)
             }
+            CommandMenu("Cameras") {
+                Button("Select All Cameras") { model.selectAll() }
+                    .keyboardShortcut("a", modifiers: [.command, .option])
+                    .disabled(model.devices.isEmpty)
+                Button(model.selection.count > 1 ? "Change Network of \(model.selection.count) Cameras…" : "Change Network…") {
+                    model.changeNetwork()
+                }
+                .keyboardShortcut("e", modifiers: .command)
+                .disabled(model.selection.isEmpty)
+            }
         }
     }
 }
