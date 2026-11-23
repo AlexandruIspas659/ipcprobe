@@ -78,6 +78,41 @@ enum ProbeRunner {
         }
     }
 
+    /// Starts the helper and keeps it running, passing each line it prints on stdout to `onLine` as it arrives —
+    /// for `ipcprobe watch --json`, which prints the device list every time it changes. `onExit` is called once,
+    /// with the exit status and whatever the helper said on stderr, when the process ends for any reason. Both
+    /// callbacks arrive on background queues.
+    static func stream(_ args: [String], onLine: @escaping @Sendable (String) -> Void,
+                       onExit: @escaping @Sendable (Int32, String) -> Void) throws -> HelperStream {
+        let p = Process()
+        p.executableURL = try helperURL()
+        p.arguments = args
+        let outPipe = Pipe(), errPipe = Pipe()
+        p.standardOutput = outPipe
+        p.standardError = errPipe
+        p.standardInput = FileHandle.nullDevice
+
+        let lines = LineCollector(), complaints = LineCollector()
+        outPipe.fileHandleForReading.readabilityHandler = { fh in
+            let d = fh.availableData
+            if d.isEmpty { fh.readabilityHandler = nil; return }
+            for line in lines.append(d) { onLine(line) }
+        }
+        errPipe.fileHandleForReading.readabilityHandler = { fh in
+            let d = fh.availableData
+            if d.isEmpty { fh.readabilityHandler = nil; return }
+            _ = complaints.append(d)
+        }
+        p.terminationHandler = { proc in
+            outPipe.fileHandleForReading.readabilityHandler = nil
+            errPipe.fileHandleForReading.readabilityHandler = nil
+            _ = complaints.append(errPipe.fileHandleForReading.readDataToEndOfFile(), flush: true)
+            onExit(proc.terminationStatus, complaints.text.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        try p.run()
+        return HelperStream(process: p)
+    }
+
     /// Decodes the helper's JSON stdout, turning a non-zero exit into an error carrying its stderr.
     static func runJSON<T: Decodable>(_ type: T.Type, _ args: [String]) async throws -> T {
         let r = try await run(args)
@@ -92,6 +127,16 @@ enum ProbeRunner {
         guard let r = try? await run(["--version"]), r.status == 0,
               let s = String(data: r.stdout, encoding: .utf8) else { return "unavailable" }
         return s.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "ipcprobe ", with: "")
+    }
+}
+
+/// A helper process that keeps running (see `ProbeRunner.stream`). `stop()` ends it.
+final class HelperStream: @unchecked Sendable {
+    private let process: Process
+    init(process: Process) { self.process = process }
+
+    func stop() {
+        if process.isRunning { process.terminate() }
     }
 }
 

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -6,8 +7,30 @@ import SwiftUI
 final class AppModel: ObservableObject {
     @Published var interfaces: [NetInterface] = []
     /// `nil` means "all interfaces" — the helper's default when `--iface` is omitted.
-    @Published var selectedInterface: String? = nil
-    @Published var timeout: Double = 5
+    @Published var selectedInterface: String? = nil {
+        didSet { if selectedInterface != oldValue, started, listen == .live { startLive() } }
+    }
+
+    /// How the list is kept: `live` runs `ipcprobe watch` and follows it; `seconds` is a one-off `ipcprobe list`
+    /// that listens that long each time Rescan is pressed.
+    enum Listen: Hashable { case live, seconds(Double) }
+    @Published var listen: Listen = .live {
+        didSet { if listen != oldValue, started { listenChanged() } }
+    }
+
+    /// How long one-off helper runs (a manual scan, the discovery before a batch) listen.
+    var timeout: Double {
+        if case .seconds(let s) = listen { return s }
+        return 3
+    }
+
+    /// True while the `watch` helper behind the live list is running.
+    @Published var liveRunning = false
+    private var liveStream: HelperStream?
+    /// Identifies the current stream, so that lines and exits from one that has been replaced are ignored.
+    private var liveToken = UUID()
+    /// Set once startup has run; until then, changing a setting must not start anything.
+    private var started = false
 
     @Published var devices: [Device] = []
     @Published var sortOrder: [KeyPathComparator<Device>] = [KeyPathComparator(\.ipValue, order: .forward)]
@@ -78,11 +101,91 @@ final class AppModel: ObservableObject {
         return helperVersion == appVersion ? "v\(appVersion)" : "v\(appVersion) · helper \(helperVersion)"
     }
 
+    init() {
+        // The watch helper would notice the app is gone the next time it writes, but that can take seconds.
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil,
+                                               queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.stopLive() }
+        }
+    }
+
     func startup() async {
         helperVersion = await ProbeRunner.version()
         await refreshInterfaces()
-        await scan()
+        started = true
+        await rescan()
     }
+
+    /// The Rescan button: start the live list afresh, or listen once more.
+    func rescan() async {
+        if listen == .live { startLive() } else { await scanOnce() }
+    }
+
+    /// Bring the list up to date after something may have changed (a sheet closing). The live list already is.
+    func scan() async {
+        if listen == .live {
+            if !liveRunning { startLive() }
+        } else {
+            await scanOnce()
+        }
+    }
+
+    private func listenChanged() {
+        if listen == .live {
+            startLive()
+        } else {
+            stopLive()
+            Task { await scanOnce() }
+        }
+    }
+
+    /// Replaces the list with what the helper reports, keeping the user's sort column and whatever of the
+    /// selection is still there.
+    private func show(_ found: [Device]) {
+        devices = found.sorted(using: sortOrder)
+        lastScan = Date()
+        selection.formIntersection(devices.map(\.mac))
+    }
+
+    // MARK: live list
+
+    func startLive() {
+        stopLive()
+        error = nil
+        let token = UUID()
+        liveToken = token
+        var args = ["watch", "--json"]
+        if let i = selectedInterface { args += ["--iface", i] }
+        do {
+            liveStream = try ProbeRunner.stream(args, onLine: { [weak self] line in
+                guard let snapshot = try? JSONDecoder().decode(WatchSnapshot.self, from: Data(line.utf8)) else { return }
+                Task { @MainActor in
+                    guard let self, self.liveToken == token else { return }
+                    self.show(snapshot.devices)
+                }
+            }, onExit: { [weak self] status, said in
+                Task { @MainActor in
+                    guard let self, self.liveToken == token else { return }   // replaced or stopped on purpose
+                    self.liveRunning = false
+                    self.liveStream = nil
+                    self.error = "Live updates stopped" + (said.isEmpty ? " (ipcprobe exited with status \(status))." : ": \(said)")
+                }
+            })
+            liveRunning = true
+        } catch {
+            liveRunning = false
+            self.error = error.localizedDescription
+        }
+    }
+
+    func stopLive() {
+        liveToken = UUID()          // whatever the old stream still says is no longer ours
+        liveStream?.stop()
+        liveStream = nil
+        liveRunning = false
+    }
+
+    // MARK: one-off scan
 
     func refreshInterfaces() async {
         do {
@@ -95,7 +198,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func scan() async {
+    private func scanOnce() async {
         guard !isScanning else { return }
         isScanning = true
         error = nil
@@ -103,10 +206,7 @@ final class AppModel: ObservableObject {
         var args = ["list", "--json", "--timeout", String(timeout)]
         if let i = selectedInterface { args += ["--iface", i] }
         do {
-            let found = try await ProbeRunner.runJSON([Device].self, args)
-            devices = found.sorted(using: sortOrder)   // keep whatever column the user is sorted by across rescans
-            lastScan = Date()
-            selection.formIntersection(devices.map(\.mac))
+            show(try await ProbeRunner.runJSON([Device].self, args))
         } catch {
             self.error = error.localizedDescription
         }

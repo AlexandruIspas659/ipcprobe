@@ -13,7 +13,7 @@ struct IPCProbeApp: App {
         }
         .commands {
             CommandGroup(after: .toolbar) {
-                Button("Rescan") { Task { await model.scan() } }
+                Button("Rescan") { Task { await model.rescan() } }
                     .keyboardShortcut("r", modifiers: .command)
                     .disabled(model.isScanning)
             }

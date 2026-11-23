@@ -53,7 +53,7 @@ struct ContentView: View {
         .font(.system(.body, design: .monospaced))
         .onChange(of: model.sortOrder) { newOrder in model.devices.sort(using: newOrder) }
         .overlay {
-            if model.devices.isEmpty && !model.isScanning {
+            if model.devices.isEmpty && !model.isScanning && model.lastScan != nil {
                 emptyState
             }
         }
@@ -124,13 +124,14 @@ struct ContentView: View {
             .fixedSize()
             .help("Which network interface to listen and send on. Only interfaces with an IPv4 address and multicast are listed; VPN tunnels never are.")
 
-            Picker("Listen", selection: $model.timeout) {
-                Text("2 s").tag(2.0)
-                Text("5 s").tag(5.0)
-                Text("10 s").tag(10.0)
+            Picker("Listen", selection: $model.listen) {
+                Text("Live").tag(AppModel.Listen.live)
+                Text("2 s").tag(AppModel.Listen.seconds(2))
+                Text("5 s").tag(AppModel.Listen.seconds(5))
+                Text("10 s").tag(AppModel.Listen.seconds(10))
             }
             .pickerStyle(.segmented)
-            .help("How long to collect announcements. Cameras announce every few seconds; 5 s catches all of them.")
+            .help("Live keeps listening and updates the list as cameras appear, change and go quiet. The others listen once, for that long, each time you rescan.")
         }
         ToolbarItemGroup(placement: .primaryAction) {
             Button {
@@ -154,7 +155,7 @@ struct ContentView: View {
                   : "Change the network configuration of the selected camera (⌘E).")
 
             Button {
-                Task { await model.scan() }
+                Task { await model.rescan() }
             } label: {
                 if model.isScanning {
                     ProgressView().controlSize(.small).frame(width: 16)
@@ -185,6 +186,11 @@ struct ContentView: View {
                 Text(e).lineLimit(2).textSelection(.enabled)
             } else if model.isScanning {
                 Text("Listening for \(Int(model.timeout)) s…")
+            } else if model.listen == .live {
+                Circle().fill(model.liveRunning ? Color.green : Color.secondary).frame(width: 8, height: 8)
+                Text(model.lastScan == nil
+                     ? "Live · listening…"
+                     : "Live · \(model.devices.count) device\(model.devices.count == 1 ? "" : "s")\(model.selection.count > 1 ? " · \(model.selection.count) selected" : "")")
             } else if let t = model.lastScan {
                 Text("\(model.devices.count) device\(model.devices.count == 1 ? "" : "s")\(model.selection.count > 1 ? " · \(model.selection.count) selected" : "") · scanned \(t.formatted(date: .omitted, time: .standard))")
             } else {

@@ -12,7 +12,7 @@ Sources/IPCProbe/
   SetNetworkSheet.swift    the change-network form; shows the helper's progress and verdict
   BatchSheet.swift         the same for several selected cameras: preview, then apply
   Model/Device.swift       Codable mirrors of the helper's JSON (mhed.Device, interfaces)
-  Model/ProbeRunner.swift  runs the helper: finds it, pipes the password over stdin, streams stderr
+  Model/ProbeRunner.swift  runs the helper: finds it, pipes the password over stdin, streams stderr; keeps `watch` running
   Model/AppModel.swift     app state: interfaces, devices, scan, set
 Resources/Info.plist       bundle metadata; NSLocalNetworkUsageDescription is what macOS shows in its prompt
   Model/CameraLists.swift  list logic with no UI in it (ordering, shared addresses) — what the unit tests cover
@@ -28,7 +28,8 @@ icon/                      the app icon: draw.py renders it, build_icns.py assem
 | App action | Helper command | Notes |
 |---|---|---|
 | interface picker | `ipcprobe interfaces --json` | same selection rules as `--iface` |
-| Rescan | `ipcprobe list --json --timeout N [--iface IP]` | stdout = JSON array of devices |
+| Live list (the default) | `ipcprobe watch --json [--iface IP]`, kept running | one `{"devices":[…]}` line whenever the list changes; the table follows it. Rescan restarts it |
+| Rescan, with Listen set to 2 / 5 / 10 s | `ipcprobe list --json --timeout N [--iface IP]` | stdout = JSON array of devices |
 | Change network | `ipcprobe set --mac … --ip … --mask … --gw … [--dns1 --dns2 --iface --force]` | **password on stdin**, never on the command line; stderr lines are shown live; exit 0 confirmed / 2 not confirmed / 1 setup error |
 | Batch: Preview | `ipcprobe apply --mac a,b,c --json --dry-run [--start-ip … --step … --mask … --gw … --dns1 … --dns2 …]` | stdout = `{dry_run, devices:[…]}`: each camera's current and target configuration, status, warnings; nothing is sent |
 | Batch: Apply | the same flags with `--yes` instead of `--dry-run` (and `--no-canary` if the box is unticked) | **password on stdin**; stderr lines are shown live; stdout = the same JSON with each camera's outcome |

@@ -53,6 +53,11 @@ struct Device: Codable, Identifiable, Hashable {
     }
 }
 
+/// One line of `ipcprobe watch --json`: the whole device list as it stands.
+struct WatchSnapshot: Codable {
+    var devices: [Device]
+}
+
 /// One usable interface, as `ipcprobe interfaces --json` emits it.
 struct NetInterface: Codable, Identifiable, Hashable {
     var name: String

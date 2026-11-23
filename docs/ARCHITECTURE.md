@@ -368,7 +368,7 @@ A SwiftUI front end with **no network code**. It bundles the CLI binary at `Cont
 `interfaces --json` for the picker, `list --json` for the table, `set` for the change-network sheet, with the
 password written to the helper's stdin and its stderr streamed into the sheet as progress. Selecting several rows
 offers the batch sheet, which is `apply --json`: once with `--dry-run` to show the helper's own plan, then with
-`--yes` to carry it out. The helper's exit code
+`--yes` to carry it out. The table itself follows a `watch --json` helper that the app keeps running. The helper's exit code
 is the verdict (0 confirmed, 2 not confirmed, 1 setup error). Everything below the UI is therefore covered by the Go
 tests, and the app cannot drift from the CLI. `macos/README.md` has the file map, the build, and the permission and
 signing story.
