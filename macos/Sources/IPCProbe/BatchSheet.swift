@@ -240,7 +240,8 @@ struct BatchSheet: View {
             }
         }
         .font(.system(.callout, design: .monospaced))
-        .frame(height: 300)
+        // Room for about five cameras with their notes; fewer cameras get a shorter list, more of them scroll.
+        .frame(height: min(300, max(130, CGFloat(ordered.count) * 58 + 40)))
         .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
