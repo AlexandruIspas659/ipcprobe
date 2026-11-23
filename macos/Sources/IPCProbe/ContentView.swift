@@ -2,6 +2,9 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
+    /// Current width of the detail pane. The selection buttons sit above it at the trailing end of the toolbar and
+    /// must not be wider than it, or they visibly hang over the divider when the window is small.
+    @State private var detailWidth: CGFloat = 340
 
     var body: some View {
         HSplitView {
@@ -11,6 +14,11 @@ struct ContentView: View {
                          onChangeNetwork: { model.changeNetwork() },
                          onChangeBatch: { model.changeNetwork() })
                 .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
+                .background(GeometryReader { g in
+                    Color.clear
+                        .onAppear { detailWidth = g.size.width }
+                        .onChange(of: g.size.width) { detailWidth = $0 }
+                })
         }
         .toolbar { toolbarContent }
         .safeAreaInset(edge: .bottom) { statusBar }
@@ -61,7 +69,9 @@ struct ContentView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .principal) {
+        // Leading, not centred (.principal): at the minimum window width a centred group runs into the buttons
+        // at the trailing end. From the leading edge the two groups only meet if the window is far too narrow.
+        ToolbarItemGroup(placement: .navigation) {
             // No explicit frame: the toolbar draws its hover capsule around the item's frame, and a frame wider
             // than the pop-up button itself left a highlighted area with a smaller control inside it.
             Picker("Interface", selection: $model.selectedInterface) {
@@ -85,21 +95,22 @@ struct ContentView: View {
             Button {
                 model.selectAll()
             } label: {
-                Label("Select All", systemImage: "checklist")
+                toolbarLabel("Select All", "checklist")
             }
-            .labelStyle(.titleAndIcon)   // toolbars show icons only by default; these two need their words
             .disabled(model.devices.isEmpty)
             .help("Select every camera in the list (⌥⌘A). ⌘-click or ⇧-click rows to pick some of them.")
 
             Button {
                 model.changeNetwork()
             } label: {
-                Label(model.selection.count > 1 ? "Change \(model.selection.count) Cameras…" : "Change Network…",
-                      systemImage: "square.and.pencil")
+                // A fixed, short title: the count lives in the tooltip and the status bar, so the button does not
+                // grow with the selection.
+                toolbarLabel("Change…", "square.and.pencil")
             }
-            .labelStyle(.titleAndIcon)
             .disabled(model.selection.isEmpty)
-            .help("Change the network configuration of the selected camera, or of all selected cameras together (⌘E).")
+            .help(model.selection.count > 1
+                  ? "Change the network configuration of the \(model.selection.count) selected cameras together (⌘E)."
+                  : "Change the network configuration of the selected camera (⌘E).")
 
             Button {
                 Task { await model.scan() }
@@ -112,6 +123,17 @@ struct ContentView: View {
             }
             .disabled(model.isScanning)
             .keyboardShortcut("r", modifiers: .command)
+        }
+    }
+
+    /// Toolbars show icons only by default; these buttons carry their words while the detail pane below them is wide
+    /// enough to hold the group, and fall back to icons (with tooltips) when it is not.
+    @ViewBuilder
+    private func toolbarLabel(_ title: String, _ systemImage: String) -> some View {
+        if detailWidth < 330 {
+            Label(title, systemImage: systemImage).labelStyle(.iconOnly)
+        } else {
+            Label(title, systemImage: systemImage).labelStyle(.titleAndIcon)
         }
     }
 
