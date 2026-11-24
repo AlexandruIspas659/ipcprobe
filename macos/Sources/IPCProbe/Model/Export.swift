@@ -19,6 +19,14 @@ enum Export {
         return rows
     }
 
+    /// A plan waiting to be filled in: each camera's MAC, its name and model to recognise it by, and where it is
+    /// now — then empty New IP / Mask / Gateway / DNS columns. Blank means keep, so the file handed back untouched
+    /// changes nothing. Same columns as the helper's `list --template`.
+    static func templateRows(_ devices: [Device]) -> [[String]] {
+        [["MAC", "Name", "Model", "IP", "New IP", "Mask", "Gateway", "DNS 1", "DNS 2"]]
+            + devices.map { [$0.mac, $0.name, $0.model, $0.ip, "", "", "", "", ""] }
+    }
+
     /// One row per camera of a batch: where it was, where it is meant to be, how that went. The network columns
     /// hold the target configuration (the current one where there is no target), so after a successful run the
     /// sheet reads as the cameras' new settings.

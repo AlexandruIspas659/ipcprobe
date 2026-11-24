@@ -33,6 +33,11 @@ struct IPCProbeApp: App {
                 .keyboardShortcut("e", modifiers: .command)
                 .disabled(model.selection.isEmpty)
                 Divider()
+                Button(model.selection.count > 1 ? "Save Plan Template for \(model.selection.count) Selected Cameras…" : "Save Plan Template…") {
+                    model.savePlanTemplate()
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
+                .disabled(model.exportDevices.isEmpty)
                 Button("Import Plan…") { model.importPlan() }
                     .keyboardShortcut("i", modifiers: [.command, .shift])
                 // Several selected cameras are exported on their own; otherwise the list as it is shown.

@@ -149,11 +149,16 @@ struct DeviceDetail: View {
             // The other way in: who gets which address, decided in a spreadsheet.
             VStack(alignment: .leading, spacing: 8) {
                 Label("Addresses decided in a spreadsheet?", systemImage: "tablecells").font(.callout.weight(.medium))
-                Text("Export the camera list, type the new addresses in, and import it.")
+                Text("Save a template with these cameras in it, type the new addresses in, and import it.")
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Import Plan…") { model.importPlan() }
-                    .help("Apply a plan from a spreadsheet saved as CSV: one camera per row, with its MAC and new address (⇧⌘I).")
+                HStack(spacing: 8) {
+                    Button("Save Template…") { model.savePlanTemplate() }
+                        .disabled(model.exportDevices.isEmpty)
+                        .help("Save a spreadsheet listing the cameras shown, with empty columns for their new settings (⇧⌘T).")
+                    Button("Import Plan…") { model.importPlan() }
+                        .help("Apply a filled-in plan: one camera per row, with its MAC and new address (⇧⌘I).")
+                }
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)

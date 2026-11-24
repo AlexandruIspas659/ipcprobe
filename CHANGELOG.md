@@ -43,7 +43,9 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
 - **Plans from a spreadsheet.** `apply --plan` now reads a CSV file as well as JSON: export the camera list,
   type the new addresses into it, and feed it back. Columns are found by header, blank cells keep the current
   value, and comma, semicolon or tab separators all work, so a file saved by Excel can be used as it is. In the
-  app: Cameras › Import Plan… (⇧⌘I), which previews the file's plan before anything is sent.
+  app: Cameras › Import Plan… (⇧⌘I), which previews the file's plan before anything is sent. `list --template`
+  (in the app: Save Plan Template…, ⇧⌘T) writes a plan to fill in for the cameras on the network, and
+  `testdata/example-plan.csv` is an example to try against fake cameras.
 - macOS app: the pane on the right is redesigned — a header, quick-action tiles (web page, copy RTSP, change
   network), copy buttons on the address, MAC and serial, and a clear call to action for cameras outside this subnet.
 - `fakecam --count N [--same-ip]` runs several software cameras, for trying a batch without hardware.

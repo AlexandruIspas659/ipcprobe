@@ -102,6 +102,12 @@ final class AppModel: ObservableObject {
         return chosen.isEmpty ? devices.foreign : chosen
     }
 
+    /// Saves a plan to fill in for `exportDevices`: their MACs, names and current addresses, with the new-address
+    /// columns empty.
+    func savePlanTemplate() {
+        Export.save(Export.templateRows(exportDevices), suggestedName: Export.fileName("camera-plan"))
+    }
+
     /// Asks for a plan file and opens it in the batch sheet. The helper reads the file; the sheet shows its plan.
     func importPlan() {
         guard editing == nil, batch == nil else { return }

@@ -35,6 +35,7 @@ icon/                      the app icon: draw.py renders it, build_icns.py assem
 | Change network | `ipcprobe set --mac … --ip … --mask … --gw … [--dns1 --dns2 --iface --force]` | **password on stdin**, never on the command line; stderr lines are shown live; exit 0 confirmed / 2 not confirmed / 1 setup error |
 | Batch: Preview | `ipcprobe apply --mac a,b,c --json --dry-run [--start-ip … --step … --mask … --gw … --dns1 … --dns2 …]` | stdout = `{dry_run, devices:[…]}`: each camera's current and target configuration, status, warnings; nothing is sent |
 | Batch: Apply | the same flags with `--yes` instead of `--dry-run` (and `--no-canary` if the box is unticked) | **password on stdin**; stderr lines are shown live; stdout = the same JSON with each camera's outcome |
+| Save Plan Template… | none — written by the app from the list (`Export.templateRows`, same columns as `ipcprobe list --template`) | the cameras shown (or the selected ones), with empty columns for their new settings |
 | Import Plan… | `ipcprobe apply --plan <file> --json --dry-run`, then `--yes` | the file (a spreadsheet saved as CSV, or JSON) says what each camera gets; the helper reads it, the sheet shows its plan. Preview re-reads the file |
 | Bring into This Network | `ipcprobe apply --mac a,b,c --rescue --json --dry-run [--gw … --dns1 … --dns2 …]`, then `--yes` | the helper picks a free address in this Mac's subnet for each stranded camera; same JSON, same sheet |
 

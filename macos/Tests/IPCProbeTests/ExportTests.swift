@@ -51,6 +51,12 @@ import Testing
         #expect(rows[2] == ["02:00:00:00:00:02", "", "", "", "", "", "", "", "", "not-seen", "not seen in discovery"])
     }
 
+    @Test func templateHasTheCamerasAndEmptyColumnsToFill() {
+        let rows = Export.templateRows([camera("02:00:00:00:00:01", ip: "192.168.1.88", name: "DVC")])
+        #expect(rows[0] == ["MAC", "Name", "Model", "IP", "New IP", "Mask", "Gateway", "DNS 1", "DNS 2"])
+        #expect(rows[1] == ["02:00:00:00:00:01", "DVC", "DCN-TEST", "192.168.1.88", "", "", "", "", ""])
+    }
+
     @Test func fileNameCarriesTheDate() {
         let day = Date(timeIntervalSince1970: 1_795_000_000)   // 2026-11-18 UTC
         #expect(Export.fileName("cameras", on: day).hasPrefix("cameras-2026-11-"))
