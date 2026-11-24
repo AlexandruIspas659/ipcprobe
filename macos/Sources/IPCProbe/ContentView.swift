@@ -6,6 +6,8 @@ struct ContentView: View {
     /// must not be wider than it, or they visibly hang over the divider when the window is small.
     @State private var detailWidth: CGFloat = 340
     @FocusState private var filterFocused: Bool
+    /// The mouse-down watcher that takes the cursor out of the filter field when anything else is clicked.
+    @State private var clickMonitor: Any? = nil
 
     var body: some View {
         HSplitView {
@@ -28,6 +30,11 @@ struct ContentView: View {
                 })
         }
         .toolbar { toolbarContent }
+        .onAppear(perform: tameFilterFocus)
+        .onDisappear {
+            if let m = clickMonitor { NSEvent.removeMonitor(m) }
+            clickMonitor = nil
+        }
         .safeAreaInset(edge: .bottom) { statusBar }
         .sheet(item: $model.editing) { d in
             SetNetworkSheet(device: d)
@@ -106,6 +113,34 @@ struct ContentView: View {
         }
     }
 
+    /// Two things a text field does on a Mac that are wrong for this one. The window hands its first text field the
+    /// cursor when it opens — so the app started with the filter ringed in blue, as if waiting for input. And
+    /// clicking a button never takes the cursor out of a text field — so the ring stayed until the table was
+    /// clicked. Here the window opens with the cursor nowhere, and a click on anything that is not a text field
+    /// (the table, the other pane, the toolbar, a button) lets go of it. Sheets are left alone: there, pressing a
+    /// button while the cursor stays in a field is exactly right.
+    private func tameFilterFocus() {
+        DispatchQueue.main.async {
+            filterFocused = false
+            NSApp.windows.first { $0.isVisible && $0.sheetParent == nil && !($0 is NSPanel) }?.makeFirstResponder(nil)
+        }
+        guard clickMonitor == nil else { return }
+        let focus = $filterFocused
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+            guard let window = event.window, window.sheetParent == nil, !(window is NSPanel),
+                  window.firstResponder is NSTextView else { return event }     // a field is being edited
+            let frame = window.contentView?.superview
+            var hit = frame?.hitTest(frame?.convert(event.locationInWindow, from: nil) ?? .zero)
+            while let v = hit {
+                if v is NSTextView || v is NSTextField { return event }         // the click is in a text field
+                hit = v.superview
+            }
+            focus.wrappedValue = false
+            window.makeFirstResponder(nil)
+            return event
+        }
+    }
+
     /// A slim field above the table. It lives here rather than in the toolbar, which has no room to spare at the
     /// window's minimum width.
     private var filterBar: some View {
@@ -116,6 +151,7 @@ struct ContentView: View {
                     .textFieldStyle(.plain)
                     .focused($filterFocused)
                     .onExitCommand { model.filter.text = ""; filterFocused = false }     // Esc clears what was typed
+                    .onSubmit { filterFocused = false }                                   // Return: done typing
                 if !model.filter.isEmpty {
                     Text("\(model.visibleDevices.count) of \(model.devices.count)").foregroundStyle(.secondary)
                     Button {
