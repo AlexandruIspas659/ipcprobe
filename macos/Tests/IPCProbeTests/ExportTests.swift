@@ -57,9 +57,19 @@ import Testing
         #expect(rows[1] == ["02:00:00:00:00:01", "DVC", "DCN-TEST", "192.168.1.88", "", "", "", "", ""])
     }
 
+    @Test func workbookRequestIsWhatTheHelperReads() throws {
+        // `ipcprobe xlsx <file>` decodes {"sheet", "rows", "input"} from stdin.
+        let rows = Export.templateRows([camera("02:00:00:00:00:01", ip: "192.168.1.88", name: "say \"hi\"")])
+        let json = Export.workbookJSON(rows, sheet: "Plan", input: Export.planInputColumns)
+        let back = try JSONDecoder().decode(Export.WorkbookRequest.self, from: Data(json.utf8))
+        #expect(back == Export.WorkbookRequest(sheet: "Plan", rows: rows, input: ["New IP", "Mask", "Gateway", "DNS 1", "DNS 2"]))
+        #expect(!json.contains("\n"))            // one line: the helper reads a single JSON value
+        #expect(Set(Export.planInputColumns).isSubset(of: Set(rows[0])))    // the tinted columns exist in the template
+    }
+
     @Test func fileNameCarriesTheDate() {
         let day = Date(timeIntervalSince1970: 1_795_000_000)   // 2026-11-18 UTC
         #expect(Export.fileName("cameras", on: day).hasPrefix("cameras-2026-11-"))
-        #expect(Export.fileName("cameras", on: day).hasSuffix(".csv"))
+        #expect(!Export.fileName("cameras", on: day).contains("."))      // the save panel adds the extension
     }
 }

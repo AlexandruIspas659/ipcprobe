@@ -486,9 +486,10 @@ struct BatchSheet: View {
                 // What the recorder's setup and the site's paperwork need: every camera's old and new address.
                 Button("Copy Results") { Export.copy(Export.batchRows(items)) }
                     .help("Copy the table (tab-separated) to paste into a spreadsheet.")
-                Button("Save as CSV…") {
-                    Export.save(Export.batchRows(items), suggestedName: Export.fileName("camera-changes"))
+                Button("Save Results…") {
+                    Export.save(Export.batchRows(items), name: Export.fileName("camera-changes"), sheet: "Changes")
                 }
+                .help("Save the table as an Excel workbook or a CSV file.")
             }
             if status != 0 {
                 Button("Try again") { phase = .editing; previewed = nil }

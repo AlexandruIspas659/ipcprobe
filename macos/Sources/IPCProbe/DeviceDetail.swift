@@ -102,8 +102,8 @@ struct DeviceDetail: View {
                     Export.copy(Export.deviceRows(ds))
                     flash("list")
                 }
-                tile("Export CSV", "square.and.arrow.up", help: "Save the selected cameras as a spreadsheet (⇧⌘E).") {
-                    Export.save(Export.deviceRows(ds), suggestedName: Export.fileName("cameras"))
+                tile("Export", "square.and.arrow.up", help: "Save the selected cameras as an Excel workbook or a CSV file (⇧⌘E).") {
+                    Export.save(Export.deviceRows(ds), name: Export.fileName("cameras"), sheet: "Cameras")
                 }
                 tile("Change Network", "network", prominent: true,
                      help: "Change all \(ds.count) together with one admin password (⌘E).") {

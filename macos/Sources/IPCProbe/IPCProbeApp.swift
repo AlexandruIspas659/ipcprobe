@@ -46,8 +46,8 @@ struct IPCProbeApp: App {
                 }
                 .keyboardShortcut("c", modifiers: [.command, .shift])
                 .disabled(model.exportDevices.isEmpty)
-                Button(model.selection.count > 1 ? "Export \(model.selection.count) Selected Cameras as CSV…" : "Export Camera List as CSV…") {
-                    Export.save(Export.deviceRows(model.exportDevices), suggestedName: Export.fileName("cameras"))
+                Button(model.selection.count > 1 ? "Export \(model.selection.count) Selected Cameras…" : "Export Camera List…") {
+                    Export.save(Export.deviceRows(model.exportDevices), name: Export.fileName("cameras"), sheet: "Cameras")
                 }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(model.exportDevices.isEmpty)

@@ -105,16 +105,18 @@ final class AppModel: ObservableObject {
     /// Saves a plan to fill in for `exportDevices`: their MACs, names and current addresses, with the new-address
     /// columns empty.
     func savePlanTemplate() {
-        Export.save(Export.templateRows(exportDevices), suggestedName: Export.fileName("camera-plan"))
+        Export.save(Export.templateRows(exportDevices), name: Export.fileName("camera-plan"), sheet: "Plan",
+                    input: Export.planInputColumns)
     }
 
     /// Asks for a plan file and opens it in the batch sheet. The helper reads the file; the sheet shows its plan.
     func importPlan() {
         guard editing == nil, batch == nil else { return }
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.commaSeparatedText, .tabSeparatedText, .json, .plainText]
+        panel.allowedContentTypes = [UTType(filenameExtension: "xlsx"), .commaSeparatedText, .tabSeparatedText, .json, .plainText]
+            .compactMap { $0 }
         panel.allowsMultipleSelection = false
-        panel.message = "Choose a plan: a spreadsheet saved as CSV with the columns MAC and New IP (or IP), Mask, Gateway, DNS 1, DNS 2 — or a JSON plan."
+        panel.message = "Choose a plan: an Excel workbook or a CSV file with the columns MAC and New IP (or IP), Mask, Gateway, DNS 1, DNS 2 — or a JSON plan."
         guard panel.runModal() == .OK, let url = panel.url else { return }
         batch = BatchSelection(devices: [], mode: .plan(url))
     }

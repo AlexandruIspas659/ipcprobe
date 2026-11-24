@@ -48,6 +48,10 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
   `testdata/example-plan.csv` is an example to try against fake cameras.
 - macOS app: the pane on the right is redesigned — a header, quick-action tiles (web page, copy RTSP, change
   network), copy buttons on the address, MAC and serial, and a clear call to action for cameras outside this subnet.
+- **Excel workbooks.** Everything that could be saved as CSV can be saved as `.xlsx` (`--xlsx <file>` on `list`,
+  `list --template` and `apply`; the default in the app's save panel), and a plan can be a workbook too. Unlike a
+  CSV file it opens in Excel with column widths, a frozen header and the columns to fill in tinted — and with
+  every cell stored as text, so an address is never turned into a number.
 - `fakecam --count N [--same-ip]` runs several software cameras, for trying a batch without hardware.
 
 ### Fixed
