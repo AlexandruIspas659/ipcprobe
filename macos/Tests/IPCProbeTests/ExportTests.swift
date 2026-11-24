@@ -8,6 +8,18 @@ import Testing
         #expect(text == "Name,Note\n\"lobby, \"\"north\"\"\",plain\n\"two\nlines\",\n")
     }
 
+    @Test func csvWithSemicolonsQuotesSemicolonsNotCommas() {
+        let text = Export.csv([["Name", "Note"], ["lobby, north", "a;b"]], separator: ";")
+        #expect(text == "Name;Note\nlobby, north;\"a;b\"\n")
+    }
+
+    @Test func separatorFollowsTheDecimalSign() {
+        #expect(Export.spreadsheetSeparator(for: Locale(identifier: "ro_RO")) == ";")
+        #expect(Export.spreadsheetSeparator(for: Locale(identifier: "de_DE")) == ";")
+        #expect(Export.spreadsheetSeparator(for: Locale(identifier: "en_US")) == ",")
+        #expect(Export.spreadsheetSeparator(for: Locale(identifier: "en_GB")) == ",")
+    }
+
     @Test func tsvFlattensWhatItCannotQuote() {
         #expect(Export.tsv([["a\tb", "c\nd"], ["e", "f"]]) == "a b\tc d\ne\tf\n")
     }
@@ -17,9 +29,10 @@ import Testing
         stranded.foreign = true
         let rows = Export.deviceRows([stranded, camera("02:00:00:00:00:02", ip: "10.0.0.5"), camera("02:00:00:00:00:03")])
         #expect(rows.count == 4)
-        #expect(Set(rows.map(\.count)) == [15])          // every row as wide as the header
-        #expect(rows.map { $0[14] } == ["Note", "other subnet, address shared by 2", "address shared by 2", ""])
+        #expect(Set(rows.map(\.count)) == [17])          // every row as wide as the header
+        #expect(rows.map { $0[16] } == ["Note", "other subnet, address shared by 2", "address shared by 2", ""])
         #expect(rows[1][1] == "10.0.0.5" && rows[1][12] == "80" && rows[1][13] == "554")
+        #expect(rows[0][14] == "Web URL" && rows[1][14] == "http://10.0.0.5/" && rows[1][15] == "rtsp://10.0.0.5/")
     }
 
     @Test func batchRowsShowWhereEachCameraEndsUp() {

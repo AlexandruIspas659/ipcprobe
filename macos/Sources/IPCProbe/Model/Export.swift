@@ -7,13 +7,14 @@ enum Export {
     static func deviceRows(_ devices: [Device]) -> [[String]] {
         let shared = devices.sharedAddresses
         var rows = [["MAC", "IP", "Mask", "Gateway", "DNS 1", "DNS 2", "Name", "Model", "Firmware", "Build",
-                     "Serial", "Vendor", "HTTP", "RTSP", "Note"]]
+                     "Serial", "Vendor", "HTTP", "RTSP", "Web URL", "RTSP URL", "Note"]]
         for d in devices {
             var notes: [String] = []
             if d.isForeign { notes.append("other subnet") }
             if let n = shared[d.ip] { notes.append("address shared by \(n)") }
             rows.append([d.mac, d.ip, d.mask, d.gateway, d.dns1, d.dns2, d.name, d.model, d.firmware, d.build,
-                         d.serial, d.vendor, String(d.http), String(d.rtsp), notes.joined(separator: ", ")])
+                         d.serial, d.vendor, String(d.http), String(d.rtsp), d.webURL?.absoluteString ?? "",
+                         d.rtspURL ?? "", notes.joined(separator: ", ")])
         }
         return rows
     }
@@ -33,15 +34,22 @@ enum Export {
         return rows
     }
 
-    /// RFC 4180: a field containing a comma, a quote or a line break is quoted, with its quotes doubled.
-    static func csv(_ rows: [[String]]) -> String {
+    /// RFC 4180: a field containing the separator, a quote or a line break is quoted, with its quotes doubled.
+    static func csv(_ rows: [[String]], separator: Character = ",") -> String {
         rows.map { row in
             row.map { field in
-                field.contains(where: { ",\"\n\r".contains($0) })
+                field.contains(where: { $0 == separator || "\"\n\r".contains($0) })
                     ? "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
                     : field
-            }.joined(separator: ",")
+            }.joined(separator: String(separator))
         }.joined(separator: "\n") + "\n"
+    }
+
+    /// The separator a spreadsheet on this Mac expects in a "CSV" file. Where the comma is the decimal sign — most
+    /// of Europe — Excel reads and writes semicolons, and opens a comma-separated file as one long column. (The
+    /// helper's `--plan` reads either, so a file saved here comes back in whichever way it was written.)
+    static func spreadsheetSeparator(for locale: Locale = .current) -> Character {
+        locale.decimalSeparator == "," ? ";" : ","
     }
 
     /// Tab-separated, the form spreadsheets accept from the clipboard. There is no quoting in that form, so tabs
@@ -74,7 +82,7 @@ enum Export {
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            try csv(rows).write(to: url, atomically: true, encoding: .utf8)
+            try csv(rows, separator: spreadsheetSeparator()).write(to: url, atomically: true, encoding: .utf8)
         } catch {
             NSAlert(error: error).runModal()
         }

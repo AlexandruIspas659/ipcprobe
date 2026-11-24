@@ -20,6 +20,20 @@ import Testing
         #expect(c.append(Data("}".utf8), flush: true) == ["{}"])
     }
 
+    @MainActor @Test func exportTakesTheSelectionOnlyWhenSeveralAreSelected() {
+        let model = AppModel()
+        model.devices = [camera("02:00:00:00:00:01", name: "lobby"), camera("02:00:00:00:00:02", name: "lobby"),
+                         camera("02:00:00:00:00:03", name: "gate")]
+        #expect(model.exportDevices.count == 3)
+        model.selection = ["02:00:00:00:00:01"]                       // one selected: still the whole list
+        #expect(model.exportDevices.count == 3)
+        model.selection = ["02:00:00:00:00:03", "02:00:00:00:00:01"]
+        #expect(model.exportDevices.map(\.mac) == ["02:00:00:00:00:01", "02:00:00:00:00:03"])     // in table order
+        model.selection = []
+        model.filter.text = "lobby"                                   // a filtered list exports what it shows
+        #expect(model.exportDevices.count == 2)
+    }
+
     @MainActor @Test func oneOffRunsListenAsLongAsTheModeSays() {
         let model = AppModel()
         #expect(model.listen == .live)

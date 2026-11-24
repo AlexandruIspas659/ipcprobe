@@ -24,8 +24,10 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
   the Cameras menu, ⇧⌘B), which previews and applies the rescue in the batch sheet. Cameras sharing an address are
   marked as well.
 - **Export.** `list --csv` and `apply --csv` write the device list, or a batch's outcome (old and new address per
-  camera), as a spreadsheet. In the app, a finished batch offers Copy Results and Save as CSV…, and the Cameras
-  menu has Copy Camera List (⇧⌘C) and Export Camera List as CSV… (⇧⌘E).
+  camera), as a spreadsheet; the list includes each camera's web and RTSP URL. In the app, a finished batch offers
+  Copy Results and Save as CSV…, and the Cameras menu has Copy Camera List (⇧⌘C) and Export Camera List as CSV…
+  (⇧⌘E) — for the selected cameras when several are selected, otherwise for the list as shown. Files the app saves
+  use the separator spreadsheets on that Mac expect (a semicolon where the comma is the decimal sign).
 - **Address-in-use check.** Before a camera is given a new address on this computer's own subnet, `set` and
   `apply` (and so the app's preview) check that nothing else holds it — not only other cameras, but anything on
   the network, by way of the system's neighbour table. An occupied address is a warning in the plan, and a rescue

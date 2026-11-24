@@ -88,6 +88,10 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// What Copy / Export Camera List act on: the selected cameras when several are selected, otherwise every
+    /// camera the table shows. One selected camera is just the one being looked at, not a choice of what to export.
+    var exportDevices: [Device] { selection.count > 1 ? selectedDevices : visibleDevices }
+
     /// Selects every camera the table shows — with a filter, that is the way to pick "all the lobby cameras".
     func selectAll() { selection = Set(visibleDevices.map(\.mac)) }
 
