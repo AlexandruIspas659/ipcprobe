@@ -229,11 +229,11 @@ func cmdShow(args []string) int {
 		{"firmware", dev.Firmware}, {"build", dev.Build}, {"serial", dev.Serial}, {"vendor", dev.Vendor},
 		{"http", fmt.Sprint(dev.HTTP)}, {"rtsp", fmt.Sprint(dev.RTSP)}, {"src", dev.Src},
 	}
-	if dev.HTTP != 0 {
-		rows = append(rows, [2]string{"web", "http://" + dev.IP + portSuffix(dev.HTTP, 80) + "/"})
+	if u := webURL(dev); u != "" {
+		rows = append(rows, [2]string{"web", u})
 	}
-	if dev.RTSP != 0 {
-		rows = append(rows, [2]string{"rtsp-url", "rtsp://" + dev.IP + portSuffix(dev.RTSP, 554) + "/"})
+	if u := rtspURL(dev); u != "" {
+		rows = append(rows, [2]string{"rtsp-url", u})
 	}
 	if dev.Foreign {
 		rows = append(rows, [2]string{"note", "outside this computer's subnet: reachable by this tool, not by IP"})

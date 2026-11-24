@@ -39,6 +39,10 @@ func TestDeviceRows(t *testing.T) {
 	if back[1][6] != `lobby, "north"` || back[2][12] != "8080" {
 		t.Errorf("round trip: name %q, http %q", back[1][6], back[2][12])
 	}
+	// Default ports are left out of the URLs, others are not, and a camera without a stream has no stream URL.
+	if back[1][14] != "http://10.0.0.5/" || back[1][15] != "rtsp://10.0.0.5/" || back[2][14] != "http://10.0.0.5:8080/" || back[2][15] != "" {
+		t.Errorf("URLs: %q %q / %q %q", back[1][14], back[1][15], back[2][14], back[2][15])
+	}
 }
 
 func TestBatchRows(t *testing.T) {

@@ -67,7 +67,8 @@ ipcprobe interfaces [--json]
 - `list` — discover every camera on the segment; `--wide` adds HTTP/RTSP port and firmware build date, `--json`
   emits machine-readable output. A Note column appears when there is something to point out: a camera on another
   subnet than this computer (reachable by this tool, not by IP), or several cameras announcing the same address.
-  `--csv` writes the list as a spreadsheet — for the site's documentation, or for whoever sets up the recorder.
+  `--csv` writes the list as a spreadsheet — for the site's documentation, or for whoever sets up the recorder;
+  it includes each camera's web and RTSP URL.
 - `watch` — keep listening and print cameras as they appear, change their configuration, or go quiet (silent for
   `--expire` seconds, 15 by default), until you press Ctrl-C. Leave it running while you work on a site. `--json`
   prints the whole list as one JSON object per line whenever it changes.

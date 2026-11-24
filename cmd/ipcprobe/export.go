@@ -17,12 +17,28 @@ import (
 func deviceRows(devs []*mhed.Device) [][]string {
 	notes := deviceNotes(devs)
 	rows := [][]string{{"MAC", "IP", "Mask", "Gateway", "DNS 1", "DNS 2", "Name", "Model", "Firmware", "Build",
-		"Serial", "Vendor", "HTTP", "RTSP", "Note"}}
+		"Serial", "Vendor", "HTTP", "RTSP", "Web URL", "RTSP URL", "Note"}}
 	for _, d := range devs {
 		rows = append(rows, []string{d.MAC, d.IP, d.Mask, d.Gateway, d.DNS1, d.DNS2, d.Name, d.Model, d.Firmware,
-			d.Build, d.Serial, d.Vendor, fmt.Sprint(d.HTTP), fmt.Sprint(d.RTSP), notes[d.MAC]})
+			d.Build, d.Serial, d.Vendor, fmt.Sprint(d.HTTP), fmt.Sprint(d.RTSP), webURL(d), rtspURL(d), notes[d.MAC]})
 	}
 	return rows
+}
+
+// webURL and rtspURL are where the camera's web page and video stream are — what a recorder or a VMS asks for when
+// a camera is added by hand. Empty when the camera announces no such port.
+func webURL(d *mhed.Device) string {
+	if d.HTTP == 0 {
+		return ""
+	}
+	return "http://" + d.IP + portSuffix(d.HTTP, 80) + "/"
+}
+
+func rtspURL(d *mhed.Device) string {
+	if d.RTSP == 0 {
+		return ""
+	}
+	return "rtsp://" + d.IP + portSuffix(d.RTSP, 554) + "/"
 }
 
 // batchRows is a batch plan or outcome as a header row plus one row per camera: where it was, where it is meant to
