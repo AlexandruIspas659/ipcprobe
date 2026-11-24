@@ -52,7 +52,7 @@ go build -o ipcprobe ./cmd/ipcprobe   # standard library only; no network needed
 ## Usage
 
 ```
-ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json | --csv | --template]
+ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json | --csv | --template] [--xlsx file]
 ipcprobe show --mac 58:5b:69:00:00:01 [--iface en0] [--json]
 ipcprobe set  --mac 58:5b:69:00:00:01 --ip 192.168.1.68 --mask 255.255.255.0 --gw 192.168.1.1 \
               [--dns1 ...] [--dns2 ...] [--iface en0] [--password ...] [--force]
@@ -68,7 +68,7 @@ ipcprobe interfaces [--json]
   emits machine-readable output. A Note column appears when there is something to point out: a camera on another
   subnet than this computer (reachable by this tool, not by IP), or several cameras announcing the same address.
   `--csv` writes the list as a spreadsheet — for the site's documentation, or for whoever sets up the recorder;
-  it includes each camera's web and RTSP URL.
+  it includes each camera's web and RTSP URL. `--xlsx cameras.xlsx` saves the same as an Excel workbook.
 - `watch` — keep listening and print cameras as they appear, change their configuration, or go quiet (silent for
   `--expire` seconds, 15 by default), until you press Ctrl-C. Leave it running while you work on a site. `--json`
   prints the whole list as one JSON object per line whenever it changes.
@@ -99,12 +99,12 @@ ipcprobe interfaces [--json]
   table is asked. An address something already holds is a warning in the plan; `--rescue` just picks another one.
   `--no-probe` skips the check.
   `--csv` prints the outcome as a spreadsheet instead of a table: each camera's old and new address and how it
-  went (`ipcprobe apply … --csv > changes.csv`).
+  went (`ipcprobe apply … --csv > changes.csv`); `--xlsx changes.xlsx` saves it as an Excel workbook as well.
 
 ### Plans from a spreadsheet
 
-When who-gets-which-address is decided on paper, put it in a spreadsheet and let the tool apply it. A plan is a CSV
-file with a header row and one camera per row:
+When who-gets-which-address is decided on paper, put it in a spreadsheet and let the tool apply it. A plan is an
+Excel workbook (`.xlsx`) or a CSV file with a header row and one camera per row:
 
 ```
 MAC;Name;New IP;Mask;Gateway;DNS 1;DNS 2
@@ -116,13 +116,18 @@ MAC;Name;New IP;Mask;Gateway;DNS 1;DNS 2
 - `MAC` says which camera; `New IP` (or `IP`), `Mask`, `Gateway`, `DNS 1`, `DNS 2` say what it gets.
 - A blank cell keeps what the camera has now, so the second row above changes an address and a DNS server and the
   third only a DNS server. Any other column (`Name` here) is ignored — keep notes in the file if you like.
-- Columns are found by their header, in any order. Comma, semicolon and tab separators are all read, so the file
-  can be saved straight from Excel or Numbers.
+- Columns are found by their header, in any order. In a CSV file comma, semicolon and tab separators are all read,
+  so it can be saved straight from Excel or Numbers.
+- Prefer the workbook when the file will pass through Excel. Excel guesses at the cells of a CSV file — where the
+  full stop is the thousands separator it turns the address `192.168.100.200` into the number 192168100200 — and
+  shows it without widths or a header. The workbooks this tool writes store every cell as text, including the
+  empty ones meant to be typed into.
 - No passwords in the file: the admin password is asked for when the plan is applied, one for all its cameras.
 
-You don't have to type the MACs. `ipcprobe list --template > plan.csv` writes a plan for the cameras on the
-network — MAC, name, model and current address filled in, the new-address columns empty — ready to open in a
-spreadsheet. (In the app: Cameras › Save Plan Template….) Handed back untouched, a template changes nothing.
+You don't have to type the MACs. `ipcprobe list --template --xlsx plan.xlsx` writes a plan for the cameras on the
+network — MAC, name, model and current address filled in, the new-address columns empty and tinted — ready to open
+in Excel (`ipcprobe list --template > plan.csv` for a CSV file; in the app, Cameras › Save Plan Template…). Handed
+back untouched, a template changes nothing.
 
 [`testdata/example-plan.csv`](testdata/example-plan.csv) is a complete example, written for the five cameras
 `go run ./cmd/fakecam --count 5 --same-ip --ip 192.168.1.88` puts on the network (plus one row for a camera that is
@@ -159,6 +164,7 @@ internal/mhed/         the protocol: packet build/parse, no I/O
 internal/discovery/    interfaces, multicast sockets, the receive loop (+ end-to-end test)
 internal/batch/        planning and carrying out a change on several cameras (`apply`)
 internal/neighbor/     is this address already in use? (asks the system's neighbour table; no privileges)
+internal/xlsx/         writing and reading simple Excel workbooks (standard library only)
 internal/fakecam/      the device side of the protocol, used by cmd/fakecam and the tests
 testdata/vectors.json  sanitized conformance vectors — the contract any implementation must pass
 .goreleaser.yaml       multi-platform release build

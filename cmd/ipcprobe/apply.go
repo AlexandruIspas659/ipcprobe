@@ -231,6 +231,13 @@ func cmdApply(args []string) int {
 		default:
 			printBatch(os.Stdout, items)
 		}
+		if path := f.str("xlsx", ""); path != "" { // as well as the report above, not instead of it
+			if err := writeWorkbook(path, "Changes", batchRows(items), nil); err != nil {
+				fmt.Fprintln(os.Stderr, "error:", err)
+			} else {
+				fmt.Fprintf(os.Stderr, "wrote %s\n", path)
+			}
+		}
 	}
 	planned := batch.Count(items, batch.Planned)
 

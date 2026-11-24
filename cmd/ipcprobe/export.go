@@ -1,13 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/netip"
+	"os"
+	"strings"
 
 	"github.com/AlexandruIspas659/ipcprobe/internal/batch"
 	"github.com/AlexandruIspas659/ipcprobe/internal/mhed"
+	"github.com/AlexandruIspas659/ipcprobe/internal/xlsx"
 )
 
 // CSV output is for people: something to open in a spreadsheet, hand to whoever configures the recorder, or file
@@ -85,6 +90,45 @@ func batchRows(items []batch.Item) [][]string {
 			str(cfg.DNS1), str(cfg.DNS2), string(it.Status), note})
 	}
 	return rows
+}
+
+// planInputColumns are the columns of a plan that are there to be typed into; a workbook tints them.
+var planInputColumns = []string{"New IP", "Mask", "Gateway", "DNS 1", "DNS 2"}
+
+// writeWorkbook saves rows as an Excel workbook. Unlike a CSV file it opens the way it was meant: columns as wide
+// as their contents, the header set apart and frozen, and every cell text — Excel does not get to decide that an
+// address is a number.
+func writeWorkbook(path, sheet string, rows [][]string, input []string) error {
+	var buf bytes.Buffer
+	if err := xlsx.Write(&buf, xlsx.Sheet{Name: sheet, Rows: rows, Input: input}); err != nil {
+		return err
+	}
+	return os.WriteFile(path, buf.Bytes(), 0o644)
+}
+
+// cmdXLSX writes a table handed over as JSON on stdin — {"sheet": "...", "rows": [[...], ...], "input": [...]} —
+// as a workbook. It exists for the macOS app, which knows what is on screen (the filtered list, the selection, a
+// batch's results) but leaves the writing of files in this format to the helper, like everything else it could
+// get wrong on its own.
+func cmdXLSX(args []string) int {
+	if len(args) != 1 || strings.HasPrefix(args[0], "--") {
+		fmt.Fprintln(os.Stderr, "usage: ipcprobe xlsx <file.xlsx>   (the table is read as JSON from stdin)")
+		return 2
+	}
+	var in struct {
+		Sheet string     `json:"sheet"`
+		Rows  [][]string `json:"rows"`
+		Input []string   `json:"input"`
+	}
+	if err := json.NewDecoder(os.Stdin).Decode(&in); err != nil {
+		fmt.Fprintln(os.Stderr, "error: expected {\"sheet\", \"rows\", \"input\"} as JSON on stdin:", err)
+		return 2
+	}
+	if err := writeWorkbook(args[0], in.Sheet, in.Rows, in.Input); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return 1
+	}
+	return 0
 }
 
 func writeCSV(w io.Writer, rows [][]string) error {

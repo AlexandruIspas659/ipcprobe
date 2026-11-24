@@ -10,14 +10,16 @@ import (
 	"strings"
 
 	"github.com/AlexandruIspas659/ipcprobe/internal/batch"
+	"github.com/AlexandruIspas659/ipcprobe/internal/xlsx"
 )
 
 // A plan file says, camera by camera, what to change: a MAC and any of IP / mask / gateway / DNS 1 / DNS 2, with
 // whatever is left out kept from the camera's current configuration. Two forms are read:
 //
 //   - JSON: an array of {"mac","ip","mask","gateway","dns1","dns2"} objects — the shape of `list --json`.
-//   - A spreadsheet saved as CSV: a header row, then one row per camera. This is the form for people: export the
-//     camera list (`list --csv`, or the app), type the new addresses into it, and feed it back.
+//   - A spreadsheet — an Excel workbook (.xlsx) or a CSV file: a header row, then one row per camera. This is the
+//     form for people: save a template (`list --template`, or the app), type the new addresses into it, and feed
+//     it back.
 //
 // A plan never contains a password; a file that has one is refused rather than read.
 
@@ -34,8 +36,16 @@ func readPlan(path string) ([]batch.Request, error) {
 	return reqs, nil
 }
 
-// parsePlan decides between the two forms by the first character: a JSON plan starts with "[".
+// parsePlan tells the forms apart by how the file starts: a workbook is a zip archive, a JSON plan starts with "[",
+// and anything else is read as CSV.
 func parsePlan(data []byte) ([]batch.Request, error) {
+	if xlsx.IsWorkbook(data) {
+		rows, err := xlsx.Read(data)
+		if err != nil {
+			return nil, err
+		}
+		return planFromTable(rows)
+	}
 	data = bytes.TrimPrefix(data, []byte("\xEF\xBB\xBF")) // the byte-order mark Excel puts in front of UTF-8
 	if trimmed := bytes.TrimSpace(data); len(trimmed) > 0 && trimmed[0] == '[' {
 		return parseJSONPlan(trimmed)
@@ -75,15 +85,7 @@ func parseJSONPlan(data []byte) ([]batch.Request, error) {
 var errPlanPassword = fmt.Errorf("the plan contains a password: remove it — the password is asked for when the plan is applied and is never read from a file")
 
 // parseCSVPlan reads a spreadsheet saved as CSV. The separator is whichever of comma, semicolon and tab the header
-// row uses most — Excel writes semicolons wherever the comma is the decimal sign — and columns are found by their
-// header, in any order and any capitalisation:
-//
-//	MAC                  required
-//	New IP, else IP      the address to give the camera ("New IP" wins when both are there, so the export of a
-//	                     finished batch, which has "Old IP" and "New IP", can be fed back as it is)
-//	Mask, Gateway, DNS 1, DNS 2
-//
-// Every other column is ignored, an empty cell means "keep", and empty rows are skipped.
+// row uses most — Excel writes semicolons wherever the comma is the decimal sign.
 func parseCSVPlan(data []byte) ([]batch.Request, error) {
 	firstLine := data
 	if i := bytes.IndexAny(data, "\r\n"); i >= 0 {
@@ -104,6 +106,20 @@ func parseCSVPlan(data []byte) ([]batch.Request, error) {
 	if err != nil {
 		return nil, fmt.Errorf("not a readable CSV file: %v", err)
 	}
+	return planFromTable(rows)
+}
+
+// planFromTable turns a spreadsheet — from a CSV file or a workbook — into a plan. The first row names the
+// columns, which are found by their header in any order and any capitalisation:
+//
+//	MAC                  required
+//	New IP, else IP      the address to give the camera ("New IP" wins when both are there, so a template, which
+//	                     shows the current address under "IP", and the export of a finished batch, which has
+//	                     "Old IP" and "New IP", can both be fed back as they are)
+//	Mask, Gateway, DNS 1, DNS 2
+//
+// Every other column is ignored, an empty cell means "keep", and empty rows are skipped.
+func planFromTable(rows [][]string) ([]batch.Request, error) {
 	if len(rows) == 0 {
 		return nil, fmt.Errorf("the plan is empty")
 	}

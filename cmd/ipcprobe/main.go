@@ -39,6 +39,8 @@ func run(args []string) int {
 		return cmdApply(args[1:])
 	case "watch":
 		return cmdWatch(args[1:])
+	case "xlsx":
+		return cmdXLSX(args[1:])
 	case "interfaces":
 		return cmdInterfaces(args[1:])
 	case "-h", "--help", "help":
@@ -57,14 +59,14 @@ func run(args []string) int {
 func usage() {
 	fmt.Fprint(os.Stderr, `ipcprobe — discover and configure TVT/OEM IP cameras (MHED/UDP 23456)
 
-  ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json | --csv | --template]
+  ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json | --csv | --template] [--xlsx <file>]
   ipcprobe show --mac <mac> [--iface en0] [--timeout 5] [--json]
   ipcprobe set  --mac <mac> --ip <ip> --mask <mask> --gw <gw>
                 [--dns1 <ip>] [--dns2 <ip>] [--iface en0]
                 [--password <pw>] [--force] [--no-probe] [--timeout 3] [--confirm-timeout 15] [--dump]
   ipcprobe apply (--mac <mac>,<mac>,... | --all | --plan plan.json)
                 [--start-ip <ip> [--step 1] | --rescue] [--mask <mask>] [--gw <gw>] [--dns1 <ip>] [--dns2 <ip>]
-                [--iface en0] [--password <pw>] [--dry-run] [--yes] [--no-canary] [--json | --csv]
+                [--iface en0] [--password <pw>] [--dry-run] [--yes] [--no-canary] [--json | --csv] [--xlsx <file>]
                 [--timeout 5] [--confirm-timeout 15] [--gap 0.25] [--no-probe]
   ipcprobe watch [--iface en0] [--json] [--expire 15]
   ipcprobe interfaces [--json]
@@ -79,6 +81,10 @@ a spreadsheet saved as CSV with the columns MAC, New IP (or IP), Mask, Gateway, 
 the addresses typed over is one — or a JSON array of {"mac","ip","mask","gateway","dns1","dns2"} objects.
 --dry-run shows what would happen and sends nothing. "list --template" writes such a file for the cameras on the
 network, with the new-address columns left empty to fill in.
+
+--xlsx <file> saves an Excel workbook: the camera list ("list --xlsx"), a plan template to fill in
+("list --template --xlsx"), or the outcome of a batch ("apply ... --xlsx"). --plan reads a workbook as readily
+as a CSV file.
 
 Before a camera is given a new address on this computer's own subnet, set and apply check that nothing else on
 the network holds it (cameras are known from discovery; for everything else the system's neighbour table is asked)
@@ -158,8 +164,12 @@ func cmdList(args []string) int {
 			formats++
 		}
 	}
-	if formats > 1 {
-		fmt.Fprintln(os.Stderr, "error: choose one of --json, --csv and --template")
+	if formats > 1 || (f.has("xlsx") && (f.has("json") || f.has("csv"))) {
+		fmt.Fprintln(os.Stderr, "error: choose one of --json, --csv, --template and --xlsx <file> (--template --xlsx <file> saves the template as a workbook)")
+		return 2
+	}
+	if f.has("xlsx") && f.str("xlsx", "") == "" {
+		fmt.Fprintln(os.Stderr, "error: --xlsx needs a file name")
 		return 2
 	}
 	ifaces, err := discovery.Choose(f.str("iface", ""))
@@ -177,7 +187,19 @@ func cmdList(args []string) int {
 		fmt.Fprintf(os.Stderr, "listening on %s for %s ...\n", ifaceList(ifaces), f.dur("timeout", 5))
 	}
 	devs, _, _ := conn.Discover(f.dur("timeout", 5))
-	if f.has("json") {
+	if f.has("xlsx") {
+		path, sorted := f.str("xlsx", ""), discovery.SortedByIP(devs)
+		if f.has("template") {
+			err = writeWorkbook(path, "Plan", templateRows(sorted), planInputColumns)
+		} else {
+			err = writeWorkbook(path, "Cameras", deviceRows(sorted), nil)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "wrote %s (%d device(s))\n", path, len(devs))
+	} else if f.has("json") {
 		printJSON(discovery.SortedByMAC(devs))
 	} else if f.has("csv") || f.has("template") {
 		rows := deviceRows(discovery.SortedByIP(devs))

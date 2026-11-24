@@ -7,6 +7,7 @@ import (
 
 	"github.com/AlexandruIspas659/ipcprobe/internal/batch"
 	"github.com/AlexandruIspas659/ipcprobe/internal/mhed"
+	"github.com/AlexandruIspas659/ipcprobe/internal/xlsx"
 )
 
 func describePlan(reqs []batch.Request) string {
@@ -183,5 +184,40 @@ func TestTemplateIsAPlanToFillIn(t *testing.T) {
 	}
 	if got := describePlan(reqs); got != "01 ip=192.168.1.101 | 02 gw=192.168.1.254" {
 		t.Errorf("filled template: %s", got)
+	}
+}
+
+// A workbook is a plan like any other: the template saved as .xlsx, filled in, comes back as the same requests a
+// CSV would give.
+func TestWorkbookPlan(t *testing.T) {
+	devs := []*mhed.Device{
+		{MAC: "02:00:00:00:00:01", IP: "192.168.100.200", Name: "DVC"},
+		{MAC: "02:00:00:00:00:02", IP: "192.168.100.200", Name: "DVC"},
+	}
+	rows := templateRows(devs)
+	rows[1][4] = "192.168.100.201" // New IP
+	rows[2][6] = "192.168.100.254" // Gateway
+	var buf bytes.Buffer
+	if err := xlsx.Write(&buf, xlsx.Sheet{Name: "Plan", Rows: rows, Input: planInputColumns}); err != nil {
+		t.Fatal(err)
+	}
+	reqs, err := parsePlan(buf.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := describePlan(reqs); got != "01 ip=192.168.100.201 | 02 gw=192.168.100.254" {
+		t.Error(got)
+	}
+
+	// The same refusals apply.
+	buf.Reset()
+	xlsx.Write(&buf, xlsx.Sheet{Rows: [][]string{{"MAC", "New IP", "Password"}, {"02:00:00:00:00:01", "192.168.1.5", "secret"}}})
+	if _, err := parsePlan(buf.Bytes()); err == nil || !strings.Contains(err.Error(), "contains a password") {
+		t.Errorf("workbook with a password column: %v", err)
+	}
+	buf.Reset()
+	xlsx.Write(&buf, xlsx.Sheet{Rows: [][]string{{"MAC", "New IP"}, {"02:00:00:00:00:01", "192168100201"}}})
+	if _, err := parsePlan(buf.Bytes()); err == nil || !strings.Contains(err.Error(), "row 2") {
+		t.Errorf("an address Excel turned into a number must be reported, not applied: %v", err)
 	}
 }

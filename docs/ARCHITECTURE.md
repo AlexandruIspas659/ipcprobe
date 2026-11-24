@@ -26,6 +26,7 @@ internal/batch/          a change on several cameras: the plan (pure) and carryi
     plan.go              targets, validation, address conflicts
     run.go               send, match acks, wait for the re-announcements
 internal/neighbor/       is an address already in use? (the OS's neighbour table, no privileges)
+internal/xlsx/           simple Excel workbooks, written and read with the standard library
 internal/fakecam/        the device side of the protocol (announce, ack, apply on correct password)
 testdata/vectors.json    known-good packets with their decoded meaning
 ```
@@ -330,8 +331,19 @@ the same address. So each datagram of a batch leaves from its own socket, kept o
 (`discovery.SendSetTracked`), and an ack is matched to a device by the port it echoes. That is what lets the report
 say, per camera, "received but not applied" versus "never reached it".
 
-**Plan files (`plan.go`).** `--plan` reads either a JSON array or a spreadsheet saved as CSV, told apart by the
-first character. The CSV reader is built for files people make: the separator is whichever of comma, semicolon
+**Workbooks (`internal/xlsx`).** CSV is the lowest common denominator and Excel treats it that way: no widths,
+no header, and it guesses at every cell — badly, for addresses, wherever the full stop is the thousands separator.
+An `.xlsx` file says what each cell is. The format is a zip of XML parts, so the standard library is enough:
+`Write` emits the six parts a one-sheet workbook needs, every cell an inline string in the built-in Text format,
+the header frozen and filterable, columns sized to their contents, and — for a plan template — the columns to fill
+in tinted, with their empty cells and the column itself already formatted as text so that what gets typed there
+stays as typed. `Read` is for what comes back: Excel rewrites strings into a shared table (sometimes as formatted
+runs), stores typed numbers as numbers and omits empty cells and rows, so it handles all of that although `Write`
+produces none of it. The tests build such a file by hand; a workbook written here has also been checked with
+Apple's Office reader — which is not the same as having been opened in every version of Excel.
+
+**Plan files (`plan.go`).** `--plan` reads a JSON array, a workbook, or a spreadsheet saved as CSV, told apart by
+how the file starts. Workbook and CSV both become a table of text and share everything after that. The CSV reader is built for files people make: the separator is whichever of comma, semicolon
 and tab the header row uses most (Excel writes semicolons wherever the comma is the decimal sign), a byte-order
 mark is skipped, columns are found by header in any order and spelling, extra columns are ignored, blank cells
 mean "keep" and empty rows are skipped. `New IP` wins over `IP`, so both of the tool's own exports — the camera
