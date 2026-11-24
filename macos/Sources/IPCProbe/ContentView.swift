@@ -110,7 +110,7 @@ struct ContentView: View {
     private var filterBar: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                Image(systemName: "magnifyingglass").foregroundStyle(filterFocused ? Color.accentColor : Color.secondary)
                 TextField("Filter by name, model, address or MAC", text: $model.filter)
                     .textFieldStyle(.plain)
                     .focused($filterFocused)
@@ -127,7 +127,15 @@ struct ContentView: View {
                 }
             }
             .font(.callout)
-            .padding(.horizontal, 12).padding(.vertical, 6)
+            // Drawn as a field, not as text on a bar, and ringed in the accent colour while the cursor is in it —
+            // so that ⌘F (Cameras › Filter…) visibly lands somewhere.
+            .padding(.horizontal, 8).padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Color(nsColor: .textBackgroundColor)))
+            .overlay(RoundedRectangle(cornerRadius: 7)
+                .strokeBorder(filterFocused ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: filterFocused ? 2 : 1))
+            .contentShape(Rectangle())
+            .onTapGesture { filterFocused = true }
+            .padding(.horizontal, 10).padding(.vertical, 6)
             Divider()
         }
         .onChange(of: model.filterFocusRequests) { _ in filterFocused = true }
