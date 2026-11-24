@@ -40,7 +40,8 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
   subnet present on the network, each with a count — shown as removable chips for as long as they apply.
 - **Plans from a spreadsheet.** `apply --plan` now reads a CSV file as well as JSON: export the camera list,
   type the new addresses into it, and feed it back. Columns are found by header, blank cells keep the current
-  value, and comma, semicolon or tab separators all work, so a file saved by Excel can be used as it is.
+  value, and comma, semicolon or tab separators all work, so a file saved by Excel can be used as it is. In the
+  app: Cameras › Import Plan… (⇧⌘I), which previews the file's plan before anything is sent.
 - `fakecam --count N [--same-ip]` runs several software cameras, for trying a batch without hardware.
 
 ### Fixed

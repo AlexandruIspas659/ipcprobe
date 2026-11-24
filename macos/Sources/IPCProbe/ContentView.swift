@@ -18,7 +18,8 @@ struct ContentView: View {
             DeviceDetail(device: model.selectedDevice, selected: model.selectedDevices,
                          onChangeNetwork: { model.changeNetwork() },
                          onChangeBatch: { model.changeNetwork() },
-                         onRescue: { model.rescue() })
+                         onRescue: { model.rescue() },
+                         onImportPlan: { model.importPlan() })
                 .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
                 .background(GeometryReader { g in
                     Color.clear

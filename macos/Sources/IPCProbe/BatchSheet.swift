@@ -10,7 +10,8 @@ import SwiftUI
 struct BatchSheet: View {
     let devices: [Device]
     /// `.rescue` is the same sheet with less to fill in: the helper picks the addresses and the mask
-    /// (`apply --rescue`), and the gateway unless one is given.
+    /// (`apply --rescue`), and the gateway unless one is given. `.plan` has nothing to fill in but the password:
+    /// the file says what each camera gets (`apply --plan`), and the cameras listed are the file's, not `devices`.
     var mode: AppModel.BatchMode = .change
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
@@ -58,14 +59,12 @@ struct BatchSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(title).font(.title3).bold()
-            Text(mode == .rescue
-                 ? "Each camera gets a free address in this Mac's subnet, with its mask. Fill in a field only to override what the cameras already on this network use."
-                 : "Empty fields keep each camera's current value.")
+            Text(subtitle)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             form
-            orderBar
+            if planURL == nil { orderBar }
             rows
             if !log.isEmpty { logView }
 
@@ -94,10 +93,19 @@ struct BatchSheet: View {
                 if snap.late { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: deliver) } else { deliver() }
                 return
             }
+            if planURL != nil {
+                preview()           // nothing to fill in first: read the file straight away
+                return
+            }
             // Cameras fresh out of the box all sit on one address: numbering them is almost certainly the job.
             let addresses = devices.map(\.ip)
             assignIPs = Set(addresses).count < addresses.count
         }
+    }
+
+    private var planURL: URL? {
+        if case .plan(let url) = mode { return url }
+        return nil
     }
 
     private var title: String {
@@ -105,6 +113,18 @@ struct BatchSheet: View {
         switch mode {
         case .change: return "Change network of \(n) cameras"
         case .rescue: return n == 1 ? "Bring 1 camera into this network" : "Bring \(n) cameras into this network"
+        case .plan(let url): return "Apply the plan in \(url.lastPathComponent)"
+        }
+    }
+
+    private var subtitle: String {
+        switch mode {
+        case .change:
+            return "Empty fields keep each camera's current value."
+        case .rescue:
+            return "Each camera gets a free address in this Mac's subnet, with its mask. Fill in a field only to override what the cameras already on this network use."
+        case .plan:
+            return "Each row of the file names a camera by its MAC and says what it gets; blank cells keep the camera's current value. After changing the file, press Preview to read it again."
         }
     }
 
@@ -112,12 +132,15 @@ struct BatchSheet: View {
 
     private var form: some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-            if mode == .rescue {
+            switch mode {
+            case .rescue:
                 fieldRow("Gateway", $gateway, prompt: "the one the cameras on this network use")
                 fieldRow("DNS 1", $dns1, prompt: "the gateway")
                 fieldRow("DNS 2", $dns2, prompt: "keep each camera's current")
-            } else {
+            case .change:
                 changeFields
+            case .plan:
+                EmptyView()         // the file is the form
             }
             GridRow {
                 Text("Admin password").gridColumnAlignment(.trailing)
@@ -225,23 +248,31 @@ struct BatchSheet: View {
             Divider()
             ScrollViewReader { proxy in
                 List(selection: $selectedRow) {
-                    ForEach(Array(ordered.enumerated()), id: \.element.mac) { index, d in
-                        row(index + 1, d, shownItems[d.mac])
-                            .tag(d.mac)
+                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                        row(index + 1, entry)
+                            .tag(entry.id)
                             .listRowSeparator(.hidden)
                     }
-                    .onMove { from, to in ordered.move(fromOffsets: from, toOffset: to) }
+                    .onMove { from, to in
+                        if planURL == nil { ordered.move(fromOffsets: from, toOffset: to) }
+                    }
                 }
                 .listStyle(.plain)
-                .moveDisabled(phase != .editing)
+                .moveDisabled(phase != .editing || planURL != nil)      // a plan's order is the file's
                 .onChange(of: moves) { _ in
                     if let mac = selectedRow { proxy.scrollTo(mac) }
+                }
+                .overlay {
+                    if entries.isEmpty {
+                        Text(phase == .previewing ? "Reading the plan…" : "No cameras to show")
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
                 }
             }
         }
         .font(.system(.callout, design: .monospaced))
         // Room for about five cameras with their notes; fewer cameras get a shorter list, more of them scroll.
-        .frame(height: min(300, max(130, CGFloat(ordered.count) * 58 + 40)))
+        .frame(height: min(300, max(130, CGFloat(entries.count) * 58 + 40)))
         .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
@@ -256,18 +287,44 @@ struct BatchSheet: View {
 
     private var previewIsStale: Bool { phase == .editing && !items.isEmpty && !previewIsCurrent }
 
-    private func row(_ number: Int, _ d: Device, _ item: BatchItem?) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+    /// One line of the list: a camera, and its part of the plan once there is one.
+    private struct Entry {
+        let id: String
+        let name: String
+        let mac: String
+        let address: String
+        let item: BatchItem?
+    }
+
+    /// The list's lines. Normally the chosen cameras in their order, each with its part of the current preview.
+    /// For a plan file the cameras are whatever the file names — known only from the helper's reading of it, and
+    /// possibly naming one twice, hence the position in the id.
+    private var entries: [Entry] {
+        if planURL != nil {
+            return items.enumerated().map { i, it in
+                Entry(id: "#\(i)", name: it.name.isEmpty ? it.model : it.name, mac: it.mac,
+                      address: it.current?.ip ?? "?", item: it)
+            }
+        }
+        let shown = shownItems
+        return ordered.map { d in
+            Entry(id: d.mac, name: d.name.isEmpty ? d.model : d.name, mac: d.mac, address: d.ip, item: shown[d.mac])
+        }
+    }
+
+    private func row(_ number: Int, _ d: Entry) -> some View {
+        let item = d.item
+        return VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .top, spacing: 10) {
                 Text("\(number)").foregroundStyle(.secondary).frame(width: Column.number, alignment: .trailing)
-                cameraCell(name: d.name.isEmpty ? d.model : d.name, mac: d.mac)
+                cameraCell(name: d.name, mac: d.mac)
                     .frame(width: Column.camera, alignment: .leading)
                 if let it = item {
                     Text(addressText(it)).frame(maxWidth: .infinity, alignment: .leading)
                     Text(otherChanges(it)).frame(width: Column.other, alignment: .leading)
                     statusCell(it).frame(width: Column.status, alignment: .leading)
                 } else {
-                    Text(d.ip).frame(maxWidth: .infinity, alignment: .leading)
+                    Text(d.address).frame(maxWidth: .infinity, alignment: .leading)
                     Text("").frame(width: Column.other, alignment: .leading)
                     Text(previewIsStale ? "preview again" : "not previewed").foregroundStyle(.secondary)
                         .frame(width: Column.status, alignment: .leading)
@@ -420,7 +477,7 @@ struct BatchSheet: View {
             }
         case .previewing:
             ProgressView().controlSize(.small)
-            Text("Looking at the cameras…").foregroundStyle(.secondary)
+            Text(planURL == nil ? "Looking at the cameras…" : "Reading the plan and looking at the cameras…").foregroundStyle(.secondary)
         case .running:
             ProgressView().controlSize(.small)
             Text("Waiting for the cameras…").foregroundStyle(.secondary)
@@ -451,6 +508,7 @@ struct BatchSheet: View {
     /// The helper flags the form currently describes (without `--dry-run` / `--yes`).
     private var options: [String] {
         var o: [String] = []
+        if planURL != nil { return o }          // the file says everything
         if mode == .rescue {
             o.append("--rescue")
         } else if assignIPs {
@@ -467,7 +525,7 @@ struct BatchSheet: View {
     private var formValid: Bool {
         let optional = [mask, gateway, dns1, dns2]
         guard optional.allSatisfy({ $0.isEmpty || isIPv4($0) }) else { return false }
-        if mode == .rescue { return true }      // nothing is required: the helper works the plan out
+        if mode != .change { return true }      // nothing is required: the helper, or the file, works the plan out
         if assignIPs {
             guard isIPv4(startIP), let n = Int(step), n >= 1 else { return false }
             return true
@@ -476,8 +534,14 @@ struct BatchSheet: View {
     }
 
     private var passwordValid: Bool { !password.isEmpty && password.utf8.count <= 21 }
+    /// Which cameras, as the helper is told: the chosen ones in their order, or the plan file.
+    private var selector: [String] {
+        if let url = planURL { return ["--plan", url.path] }
+        return ["--mac", ordered.map(\.mac).joined(separator: ",")]
+    }
+
     /// The form and the camera order as one value, to tell whether a preview is still about the same thing.
-    private var signature: [String] { options + ["--mac"] + ordered.map(\.mac) }
+    private var signature: [String] { options + selector }
     private var previewIsCurrent: Bool { previewed == signature }
 
     /// Apply is offered only for a preview of exactly what the form says now, with something to do and nothing wrong.
@@ -495,12 +559,12 @@ struct BatchSheet: View {
 
     private func preview() {
         guard formValid, phase == .editing else { return }
-        let opts = options, macs = ordered.map(\.mac), sig = signature
+        let opts = options, which = selector, sig = signature
         phase = .previewing
         problem = nil
         log = []
         Task { @MainActor in
-            let run = await model.applyBatch(macs: macs, options: opts + ["--dry-run"], password: nil) { _ in }
+            let run = await model.applyBatch(selector: which, options: opts + ["--dry-run"], password: nil) { _ in }
             if let out = run.output {
                 items = out.devices
                 previewed = sig
@@ -522,7 +586,7 @@ struct BatchSheet: View {
         problem = nil
         log = []
         Task { @MainActor in
-            let run = await model.applyBatch(macs: ordered.map(\.mac), options: opts, password: pw) { line in
+            let run = await model.applyBatch(selector: selector, options: opts, password: pw) { line in
                 log.append(line)
             }
             if let out = run.output {

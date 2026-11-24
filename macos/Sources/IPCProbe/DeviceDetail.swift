@@ -9,6 +9,7 @@ struct DeviceDetail: View {
     var onChangeNetwork: () -> Void
     var onChangeBatch: () -> Void = {}
     var onRescue: () -> Void = {}
+    var onImportPlan: () -> Void = {}
 
     var body: some View {
         Group {
@@ -17,10 +18,19 @@ struct DeviceDetail: View {
             } else if selected.count > 1 {
                 several(selected)
             } else {
-                VStack {
+                VStack(spacing: 10) {
                     Spacer()
                     Text("Select a camera").foregroundStyle(.secondary)
+                    Text("Select several to change them together.").font(.callout).foregroundStyle(.tertiary)
                     Spacer()
+                    // The other way in: who gets which address, decided in a spreadsheet.
+                    Button("Import Plan…", action: onImportPlan)
+                        .help("Apply a plan from a spreadsheet saved as CSV: one camera per row, with its MAC and new address (⇧⌘I).")
+                    Text("Addresses decided in a spreadsheet? Export the camera list, type them in, import it here.")
+                        .font(.caption).foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 20).padding(.bottom, 28)
                 }
                 .frame(maxWidth: .infinity)
             }

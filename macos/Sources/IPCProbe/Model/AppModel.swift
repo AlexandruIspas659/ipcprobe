@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// All app state. One instance, owned by the App, injected as an environment object.
 @MainActor
@@ -55,9 +56,13 @@ final class AppModel: ObservableObject {
     var selectedDevices: [Device] { visibleDevices.filter { selection.contains($0.mac) } }
     var selectedDevice: Device? { selection.count == 1 ? selectedDevices.first : nil }
 
-    /// What a batch sheet is for: a change the user describes, or bringing stranded cameras into this Mac's subnet
-    /// with addresses the helper picks (`apply --rescue`).
-    enum BatchMode { case change, rescue }
+    /// What a batch sheet is for: a change the user describes; bringing stranded cameras into this Mac's subnet
+    /// with addresses the helper picks (`apply --rescue`); or a plan file — a spreadsheet saved as CSV, or JSON —
+    /// that says camera by camera what to change (`apply --plan`).
+    enum BatchMode: Equatable {
+        case change, rescue
+        case plan(URL)
+    }
 
     /// The cameras a batch sheet was opened for — a snapshot, so a rescan behind the sheet cannot change them.
     struct BatchSelection: Identifiable {
@@ -91,6 +96,17 @@ final class AppModel: ObservableObject {
     var rescueCandidates: [Device] {
         let chosen = selectedDevices.foreign
         return chosen.isEmpty ? devices.foreign : chosen
+    }
+
+    /// Asks for a plan file and opens it in the batch sheet. The helper reads the file; the sheet shows its plan.
+    func importPlan() {
+        guard editing == nil, batch == nil else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.commaSeparatedText, .tabSeparatedText, .json, .plainText]
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a plan: a spreadsheet saved as CSV with the columns MAC and New IP (or IP), Mask, Gateway, DNS 1, DNS 2 — or a JSON plan."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        batch = BatchSelection(devices: [], mode: .plan(url))
     }
 
     /// Opens the batch sheet in rescue mode for `rescueCandidates`.
@@ -254,12 +270,13 @@ final class AppModel: ObservableObject {
         var message: String?
     }
 
-    /// Runs `ipcprobe apply --json` for the given cameras. `options` are the helper's own flags (`--start-ip`,
-    /// `--gw`, `--dry-run`, `--yes`, …). The password, when given, goes over stdin. Progress lines are passed to
-    /// `log`. Exit codes: 0 everything confirmed (or a clean dry run), 2 not everything, 1 setup error.
-    func applyBatch(macs: [String], options: [String], password: String?,
+    /// Runs `ipcprobe apply --json`. `selector` says which cameras (`--mac a,b,c`, or `--plan file`), `options`
+    /// are the helper's other flags (`--start-ip`, `--gw`, `--dry-run`, `--yes`, …). The password, when given, goes
+    /// over stdin. Progress lines are passed to `log`. Exit codes: 0 everything confirmed (or a clean dry run),
+    /// 2 not everything, 1 setup error.
+    func applyBatch(selector: [String], options: [String], password: String?,
                     log: @escaping @MainActor (String) -> Void) async -> BatchRun {
-        var args = ["apply", "--mac", macs.joined(separator: ","), "--json", "--timeout", String(timeout)]
+        var args = ["apply"] + selector + ["--json", "--timeout", String(timeout)]
         if let i = selectedInterface { args += ["--iface", i] }
         args += options
         do {

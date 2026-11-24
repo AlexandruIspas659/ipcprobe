@@ -33,6 +33,8 @@ struct IPCProbeApp: App {
                 .keyboardShortcut("e", modifiers: .command)
                 .disabled(model.selection.isEmpty)
                 Divider()
+                Button("Import Plan…") { model.importPlan() }
+                    .keyboardShortcut("i", modifiers: [.command, .shift])
                 Button("Copy Camera List") { Export.copy(Export.deviceRows(model.devices)) }
                     .keyboardShortcut("c", modifiers: [.command, .shift])
                     .disabled(model.devices.isEmpty)
