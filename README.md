@@ -52,7 +52,7 @@ go build -o ipcprobe ./cmd/ipcprobe   # standard library only; no network needed
 ## Usage
 
 ```
-ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json | --csv]
+ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json | --csv | --template]
 ipcprobe show --mac 58:5b:69:00:00:01 [--iface en0] [--json]
 ipcprobe set  --mac 58:5b:69:00:00:01 --ip 192.168.1.68 --mask 255.255.255.0 --gw 192.168.1.1 \
               [--dns1 ...] [--dns2 ...] [--iface en0] [--password ...] [--force]
@@ -120,6 +120,10 @@ MAC;Name;New IP;Mask;Gateway;DNS 1;DNS 2
   can be saved straight from Excel or Numbers.
 - No passwords in the file: the admin password is asked for when the plan is applied, one for all its cameras.
 
+You don't have to type the MACs. `ipcprobe list --template > plan.csv` writes a plan for the cameras on the
+network — MAC, name, model and current address filled in, the new-address columns empty — ready to open in a
+spreadsheet. (In the app: Cameras › Save Plan Template….) Handed back untouched, a template changes nothing.
+
 [`testdata/example-plan.csv`](testdata/example-plan.csv) is a complete example, written for the five cameras
 `go run ./cmd/fakecam --count 5 --same-ip --ip 192.168.1.88` puts on the network (plus one row for a camera that is
 not there, to show how that is reported). Try it without hardware:
@@ -129,7 +133,7 @@ ipcprobe apply --plan testdata/example-plan.csv --dry-run     # show the plan, s
 ipcprobe apply --plan testdata/example-plan.csv               # apply it (the fake cameras' password is admin)
 ```
 
-In the app: Cameras › Import Plan….
+In the app: Cameras › Save Plan Template… to get the file, Cameras › Import Plan… to apply it.
 
 On macOS, the wired camera interface is usually `en0` for built-in Ethernet or `en5`/`en6` for a USB‑C adapter
 (`ifconfig` to check). The first run triggers the system's Local Network permission prompt — allow it.

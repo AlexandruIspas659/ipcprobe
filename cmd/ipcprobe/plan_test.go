@@ -142,3 +142,46 @@ func TestExamplePlan(t *testing.T) {
 		t.Error(got)
 	}
 }
+
+// A template is a plan with nothing asked yet: handed back untouched it changes nothing, and each cell typed into
+// it becomes exactly one request.
+func TestTemplateIsAPlanToFillIn(t *testing.T) {
+	devs := []*mhed.Device{
+		{MAC: "02:00:00:00:00:01", IP: "192.168.1.88", Mask: "255.255.255.0", Gateway: "192.168.1.1", DNS1: "192.168.1.1", DNS2: "8.8.8.8", Name: "DVC"},
+		{MAC: "02:00:00:00:00:02", IP: "192.168.1.88", Mask: "255.255.255.0", Gateway: "192.168.1.1", DNS1: "192.168.1.1", DNS2: "8.8.8.8", Name: "DVC"},
+	}
+	rows := templateRows(devs)
+	var untouched bytes.Buffer
+	if err := writeCSV(&untouched, rows); err != nil {
+		t.Fatal(err)
+	}
+	reqs, err := parsePlan(untouched.Bytes())
+	if err != nil {
+		t.Fatalf("untouched template: %v", err)
+	}
+	// The IP column says where each camera is now; it must not be read as an instruction.
+	if got := describePlan(reqs); got != "01 | 02" {
+		t.Errorf("untouched template asks for something: %s", got)
+	}
+	items := batch.Build(map[string]*mhed.Device{devs[0].MAC: devs[0], devs[1].MAC: devs[1]}, reqs)
+	if batch.Count(items, batch.Unchanged) != 2 {
+		t.Errorf("untouched template would change cameras: %+v", items)
+	}
+
+	col := map[string]int{}
+	for i, h := range rows[0] {
+		col[h] = i
+	}
+	rows[1][col["New IP"]] = "192.168.1.101"
+	rows[2][col["Gateway"]] = "192.168.1.254"
+	var filled bytes.Buffer
+	if err := writeCSV(&filled, rows); err != nil {
+		t.Fatal(err)
+	}
+	if reqs, err = parsePlan(filled.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	if got := describePlan(reqs); got != "01 ip=192.168.1.101 | 02 gw=192.168.1.254" {
+		t.Errorf("filled template: %s", got)
+	}
+}

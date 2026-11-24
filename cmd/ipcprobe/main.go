@@ -57,7 +57,7 @@ func run(args []string) int {
 func usage() {
 	fmt.Fprint(os.Stderr, `ipcprobe — discover and configure TVT/OEM IP cameras (MHED/UDP 23456)
 
-  ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json | --csv]
+  ipcprobe list [--iface en0] [--timeout 5] [--wide] [--json | --csv | --template]
   ipcprobe show --mac <mac> [--iface en0] [--timeout 5] [--json]
   ipcprobe set  --mac <mac> --ip <ip> --mask <mask> --gw <gw>
                 [--dns1 <ip>] [--dns2 <ip>] [--iface en0]
@@ -77,7 +77,8 @@ current configuration: --start-ip hands out consecutive addresses in the order t
 --gw / --mask / --dns1 / --dns2 alone change those fields in place. --plan takes a file with one camera per row:
 a spreadsheet saved as CSV with the columns MAC, New IP (or IP), Mask, Gateway, DNS 1, DNS 2 — "list --csv" with
 the addresses typed over is one — or a JSON array of {"mac","ip","mask","gateway","dns1","dns2"} objects.
---dry-run shows what would happen and sends nothing.
+--dry-run shows what would happen and sends nothing. "list --template" writes such a file for the cameras on the
+network, with the new-address columns left empty to fill in.
 
 Before a camera is given a new address on this computer's own subnet, set and apply check that nothing else on
 the network holds it (cameras are known from discovery; for everything else the system's neighbour table is asked)
@@ -146,13 +147,19 @@ func (f *flags) dur(k string, def float64) time.Duration {
 // --- commands ---
 
 func cmdList(args []string) int {
-	f, err := parseFlags(args, map[string]bool{"wide": true, "json": true, "csv": true})
+	f, err := parseFlags(args, map[string]bool{"wide": true, "json": true, "csv": true, "template": true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 2
 	}
-	if f.has("json") && f.has("csv") {
-		fmt.Fprintln(os.Stderr, "error: choose one of --json and --csv")
+	formats := 0
+	for _, k := range []string{"json", "csv", "template"} {
+		if f.has(k) {
+			formats++
+		}
+	}
+	if formats > 1 {
+		fmt.Fprintln(os.Stderr, "error: choose one of --json, --csv and --template")
 		return 2
 	}
 	ifaces, err := discovery.Choose(f.str("iface", ""))
@@ -172,8 +179,12 @@ func cmdList(args []string) int {
 	devs, _, _ := conn.Discover(f.dur("timeout", 5))
 	if f.has("json") {
 		printJSON(discovery.SortedByMAC(devs))
-	} else if f.has("csv") {
-		if err := writeCSV(os.Stdout, deviceRows(discovery.SortedByIP(devs))); err != nil {
+	} else if f.has("csv") || f.has("template") {
+		rows := deviceRows(discovery.SortedByIP(devs))
+		if f.has("template") { // the same cameras, as a plan to fill in
+			rows = templateRows(discovery.SortedByIP(devs))
+		}
+		if err := writeCSV(os.Stdout, rows); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			return 1
 		}

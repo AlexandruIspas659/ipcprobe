@@ -41,6 +41,18 @@ func rtspURL(d *mhed.Device) string {
 	return "rtsp://" + d.IP + portSuffix(d.RTSP, 554) + "/"
 }
 
+// templateRows is a plan waiting to be filled in: the cameras that are there, each with its MAC, its name and model
+// to recognise it by, and where it is now — followed by empty New IP / Mask / Gateway / DNS columns. Type into
+// those, leave the rest blank (blank means keep), and the file is a plan for `apply --plan`. Handed back untouched
+// it changes nothing.
+func templateRows(devs []*mhed.Device) [][]string {
+	rows := [][]string{{"MAC", "Name", "Model", "IP", "New IP", "Mask", "Gateway", "DNS 1", "DNS 2"}}
+	for _, d := range devs {
+		rows = append(rows, []string{d.MAC, d.Name, d.Model, d.IP, "", "", "", "", ""})
+	}
+	return rows
+}
+
 // batchRows is a batch plan or outcome as a header row plus one row per camera: where it was, where it is meant to
 // be, and how that went. The network columns hold the target configuration (the current one where there is no
 // target), so after a successful run the sheet reads as the cameras' new settings.
