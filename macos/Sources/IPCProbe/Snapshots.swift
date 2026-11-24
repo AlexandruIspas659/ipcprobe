@@ -25,9 +25,11 @@ enum Snapshots {
         model.selection = Set(Fixtures.devices.prefix(4).map(\.mac))
         shoot("main-several-selected", ContentView().environmentObject(model), size: CGSize(width: 900, height: 520), to: dir)
         model.selection = []
-        model.filter = "lobby"
+        model.filter.text = "lobby"
         shoot("main-filtered", ContentView().environmentObject(model), size: CGSize(width: 900, height: 520), to: dir)
-        model.filter = ""
+        model.filter = CameraFilter(sharedAddress: true, models: ["DCN-BM8127AIN"], subnets: ["192.168.1.0/24"])
+        shoot("main-criteria", ContentView().environmentObject(model), size: CGSize(width: 900, height: 520), to: dir)
+        model.filter = CameraFilter()
 
         let four = Array(Fixtures.devices.prefix(4))
         shoot("batch-empty", BatchSheet(devices: four).environmentObject(model), to: dir)

@@ -35,7 +35,9 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
   it follows that stream, so a camera you have just changed moves in the table by itself. The Listen control
   still offers a one-off 2, 5 or 10 second scan.
 - macOS app: a filter field above the table (⌘F) narrows the list by name, model, address or MAC; Select All then
-  selects what is shown, which makes "all the lobby cameras" a two-step batch.
+  selects what is shown, which makes "all the lobby cameras" a two-step batch. Its Filter menu adds criteria that
+  cannot be typed — outside this subnet, shares an address, not named yet, and any model, firmware version or
+  subnet present on the network, each with a count — shown as removable chips for as long as they apply.
 - `fakecam --count N [--same-ip]` runs several software cameras, for trying a batch without hardware.
 
 ### Fixed

@@ -41,15 +41,15 @@ final class AppModel: ObservableObject {
     @Published var error: String? = nil
     @Published var helperVersion = "…"
 
-    /// What is typed in the filter field; the table shows `visibleDevices`.
-    @Published var filter = "" {
+    /// What the filter bar narrows the list to — typed words and picked criteria; the table shows `visibleDevices`.
+    @Published var filter = CameraFilter() {
         didSet { selection.formIntersection(visibleDevices.map(\.mac)) }   // nothing hidden stays selected
     }
     /// Bumped to ask the view to put the cursor in the filter field (⌘F).
     @Published var filterFocusRequests = 0
 
     /// The cameras the table shows: all of them, or the ones matching the filter.
-    var visibleDevices: [Device] { devices.matching(filter) }
+    var visibleDevices: [Device] { filter.apply(to: devices) }
 
     /// The selected cameras in the order the table shows them — the order a batch hands out addresses in.
     var selectedDevices: [Device] { visibleDevices.filter { selection.contains($0.mac) } }

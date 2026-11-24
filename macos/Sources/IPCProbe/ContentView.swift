@@ -60,8 +60,8 @@ struct ContentView: View {
             } else if model.visibleDevices.isEmpty && !model.devices.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").font(.largeTitle).foregroundStyle(.secondary)
-                    Text("No camera matches “\(model.filter)”").font(.title3)
-                    Button("Show All Cameras") { model.filter = "" }
+                    Text("No camera matches the filter").font(.title3)
+                    Button("Show All Cameras") { model.filter = CameraFilter() }
                 }
                 .padding()
             }
@@ -111,20 +111,22 @@ struct ContentView: View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(filterFocused ? Color.accentColor : Color.secondary)
-                TextField("Filter by name, model, address or MAC", text: $model.filter)
+                TextField("Filter by name, model, address or MAC", text: $model.filter.text)
                     .textFieldStyle(.plain)
                     .focused($filterFocused)
-                    .onExitCommand { model.filter = ""; filterFocused = false }     // Esc clears
+                    .onExitCommand { model.filter.text = ""; filterFocused = false }     // Esc clears what was typed
                 if !model.filter.isEmpty {
                     Text("\(model.visibleDevices.count) of \(model.devices.count)").foregroundStyle(.secondary)
                     Button {
-                        model.filter = ""
+                        model.filter = CameraFilter()
                     } label: {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
                     .help("Show all cameras")
                 }
+                Divider().frame(height: 14)
+                criteriaMenu
             }
             .font(.callout)
             // Drawn as a field, not as text on a bar, and ringed in the accent colour while the cursor is in it —
@@ -136,9 +138,74 @@ struct ContentView: View {
             .contentShape(Rectangle())
             .onTapGesture { filterFocused = true }
             .padding(.horizontal, 10).padding(.vertical, 6)
+            if model.filter.hasCriteria { chips }
             Divider()
         }
         .onChange(of: model.filterFocusRequests) { _ in filterFocused = true }
+    }
+
+    /// The criteria that cannot be typed: built from the cameras on the network, each with how many it would show.
+    private var criteriaMenu: some View {
+        let facets = model.devices.facets(keeping: model.filter)
+        return Menu {
+            Toggle("Outside this subnet (\(facets.foreign))", isOn: $model.filter.foreign)
+            Toggle("Shares an address (\(facets.sharedAddress))", isOn: $model.filter.sharedAddress)
+            Toggle("Not named yet (\(facets.unnamed))", isOn: $model.filter.unnamed)
+            criteriaSection("Model", facets.models, \.models)
+            criteriaSection("Firmware", facets.firmwares, \.firmwares)
+            criteriaSection("Subnet", facets.subnets, \.subnets)
+            Divider()
+            Button("Clear All Filters") { model.filter = CameraFilter() }
+                .disabled(model.filter.isEmpty)
+        } label: {
+            Label("Filter", systemImage: model.filter.hasCriteria ? "line.3.horizontal.decrease.circle.fill"
+                                                                  : "line.3.horizontal.decrease.circle")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Narrow the list by status, model, firmware or subnet. What you pick stays visible below the field.")
+    }
+
+    @ViewBuilder
+    private func criteriaSection(_ title: String, _ values: [CameraFacets.Value],
+                                 _ set: WritableKeyPath<CameraFilter, Set<String>>) -> some View {
+        if !values.isEmpty {
+            Section(title) {
+                ForEach(values) { v in
+                    Toggle("\(v.value) (\(v.count))", isOn: Binding(
+                        get: { model.filter[keyPath: set].contains(v.value) },
+                        set: { on in
+                            if on { model.filter[keyPath: set].insert(v.value) } else { model.filter[keyPath: set].remove(v.value) }
+                        }))
+                }
+            }
+        }
+    }
+
+    /// The picked criteria, each removable. They stay on screen for as long as they apply: a list that is quietly
+    /// shorter than the network is how a batch ends up skipping cameras.
+    private var chips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(model.filter.chips) { chip in
+                    HStack(spacing: 4) {
+                        Text(chip.label)
+                        Button {
+                            model.filter.remove(chip)
+                        } label: {
+                            Image(systemName: "xmark").font(.caption2.weight(.bold))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove this filter")
+                    }
+                    .font(.callout)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(Color.accentColor.opacity(0.3)))
+                }
+            }
+            .padding(.horizontal, 10)
+        }
+        .padding(.bottom, 6)
     }
 
     private var emptyState: some View {

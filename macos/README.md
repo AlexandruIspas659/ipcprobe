@@ -16,6 +16,7 @@ Sources/IPCProbe/
   Model/AppModel.swift     app state: interfaces, devices, scan, set
 Resources/Info.plist       bundle metadata; NSLocalNetworkUsageDescription is what macOS shows in its prompt
   Model/CameraLists.swift  list logic with no UI in it (ordering, filtering, shared addresses) — what the unit tests cover
+  Model/CameraFilter.swift the filter bar's state: typed words plus criteria picked from the Filter menu
   Model/Export.swift       the camera list and a batch's outcome as CSV / tab-separated text
   Snapshots.swift          development aid: `IPCProbe --snapshots <dir>` renders the screens to PNG (see below)
 Tests/IPCProbeTests/       unit tests for the app's own logic; nothing here touches the network
