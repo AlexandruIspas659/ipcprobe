@@ -128,3 +128,17 @@ func TestJSONPlan(t *testing.T) {
 		t.Error(got)
 	}
 }
+
+// The example plan shipped in testdata must stay a valid plan: it is what the README tells people to try.
+func TestExamplePlan(t *testing.T) {
+	reqs, err := readPlan("../../testdata/example-plan.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 6 {
+		t.Fatalf("%d cameras, want 6", len(reqs))
+	}
+	if got := describePlan(reqs[2:5]); got != "03 ip=192.168.1.203 dns2=1.1.1.1 | 04 ip=192.168.1.204 | 05 dns2=9.9.9.9" {
+		t.Error(got)
+	}
+}

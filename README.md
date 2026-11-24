@@ -101,6 +101,36 @@ ipcprobe interfaces [--json]
   `--csv` prints the outcome as a spreadsheet instead of a table: each camera's old and new address and how it
   went (`ipcprobe apply … --csv > changes.csv`).
 
+### Plans from a spreadsheet
+
+When who-gets-which-address is decided on paper, put it in a spreadsheet and let the tool apply it. A plan is a CSV
+file with a header row and one camera per row:
+
+```
+MAC;Name;New IP;Mask;Gateway;DNS 1;DNS 2
+02:00:00:00:00:01;entrance;192.168.1.201;;;;
+02:00:00:00:00:03;parking;192.168.1.203;;;;1.1.1.1
+02:00:00:00:00:05;office;;;;;9.9.9.9
+```
+
+- `MAC` says which camera; `New IP` (or `IP`), `Mask`, `Gateway`, `DNS 1`, `DNS 2` say what it gets.
+- A blank cell keeps what the camera has now, so the second row above changes an address and a DNS server and the
+  third only a DNS server. Any other column (`Name` here) is ignored — keep notes in the file if you like.
+- Columns are found by their header, in any order. Comma, semicolon and tab separators are all read, so the file
+  can be saved straight from Excel or Numbers.
+- No passwords in the file: the admin password is asked for when the plan is applied, one for all its cameras.
+
+[`testdata/example-plan.csv`](testdata/example-plan.csv) is a complete example, written for the five cameras
+`go run ./cmd/fakecam --count 5 --same-ip --ip 192.168.1.88` puts on the network (plus one row for a camera that is
+not there, to show how that is reported). Try it without hardware:
+
+```
+ipcprobe apply --plan testdata/example-plan.csv --dry-run     # show the plan, send nothing
+ipcprobe apply --plan testdata/example-plan.csv               # apply it (the fake cameras' password is admin)
+```
+
+In the app: Cameras › Import Plan….
+
 On macOS, the wired camera interface is usually `en0` for built-in Ethernet or `en5`/`en6` for a USB‑C adapter
 (`ifconfig` to check). The first run triggers the system's Local Network permission prompt — allow it.
 

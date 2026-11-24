@@ -1,5 +1,9 @@
 # testdata
 
+`example-plan.csv` — an example plan for `ipcprobe apply --plan` (and the app's Import Plan…), written for the
+software cameras that `go run ./cmd/fakecam --count 5 --same-ip --ip 192.168.1.88` starts. Synthetic MACs, no
+passwords. See "Plans from a spreadsheet" in the top-level README.
+
 `vectors.json` — sanitized, language-neutral protocol test vectors. Every implementation must pass these; `go test ./internal/mhed/` is the
 runnable check (`TestVectors`, plus round-trip tests that rebuild each vector from its decoded form).
 
