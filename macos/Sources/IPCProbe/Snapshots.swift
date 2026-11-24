@@ -22,6 +22,10 @@ enum Snapshots {
         shoot("main", ContentView().environmentObject(model), size: CGSize(width: 900, height: 520), to: dir)
         model.selection = [Fixtures.devices[0].mac]
         shoot("main-one-selected", ContentView().environmentObject(model), size: CGSize(width: 900, height: 520), to: dir)
+        model.selection = [Fixtures.devices[4].mac]
+        shoot("main-stranded-selected", ContentView().environmentObject(model), size: CGSize(width: 900, height: 520), to: dir)
+        model.selection = Set(Fixtures.devices.suffix(4).map(\.mac))
+        shoot("main-several-with-stranded", ContentView().environmentObject(model), size: CGSize(width: 900, height: 520), to: dir)
         model.selection = Set(Fixtures.devices.prefix(4).map(\.mac))
         shoot("main-several-selected", ContentView().environmentObject(model), size: CGSize(width: 900, height: 520), to: dir)
         model.selection = []

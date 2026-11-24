@@ -8,7 +8,7 @@ app can never disagree with the CLI about the protocol, and the CLI's tests cove
 Sources/IPCProbe/
   IPCProbeApp.swift        entry point, window, ⌘R
   ContentView.swift        toolbar (interface, live / listen time, select, change, rescan), rescue banner, filter, device table, status bar
-  DeviceDetail.swift       every field of the selected camera; open web UI / copy RTSP URL / change network
+  DeviceDetail.swift       the right-hand pane: one camera (details, quick actions), several (summary, batch), none
   SetNetworkSheet.swift    the change-network form; shows the helper's progress and verdict
   BatchSheet.swift         the same for several selected cameras: preview, then apply
   Model/Device.swift       Codable mirrors of the helper's JSON (mhed.Device, interfaces)

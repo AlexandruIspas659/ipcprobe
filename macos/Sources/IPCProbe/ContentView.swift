@@ -10,24 +10,25 @@ struct ContentView: View {
     @State private var clickMonitor: Any? = nil
 
     var body: some View {
-        HSplitView {
-            VStack(spacing: 0) {
-                rescueBanner
-                filterBar
-                deviceTable
+        // The status bar is a row of its own under the panes, not an inset laid over them: as an inset it covered
+        // the bottom of whatever a pane put there.
+        VStack(spacing: 0) {
+            HSplitView {
+                VStack(spacing: 0) {
+                    rescueBanner
+                    filterBar
+                    deviceTable
+                }
+                .frame(minWidth: 560)
+                DeviceDetail()
+                    .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
+                    .background(GeometryReader { g in
+                        Color.clear
+                            .onAppear { detailWidth = g.size.width }
+                            .onChange(of: g.size.width) { detailWidth = $0 }
+                    })
             }
-            .frame(minWidth: 560)
-            DeviceDetail(device: model.selectedDevice, selected: model.selectedDevices,
-                         onChangeNetwork: { model.changeNetwork() },
-                         onChangeBatch: { model.changeNetwork() },
-                         onRescue: { model.rescue() },
-                         onImportPlan: { model.importPlan() })
-                .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
-                .background(GeometryReader { g in
-                    Color.clear
-                        .onAppear { detailWidth = g.size.width }
-                        .onChange(of: g.size.width) { detailWidth = $0 }
-                })
+            statusBar
         }
         .toolbar { toolbarContent }
         .onAppear(perform: tameFilterFocus)
@@ -35,7 +36,6 @@ struct ContentView: View {
             if let m = clickMonitor { NSEvent.removeMonitor(m) }
             clickMonitor = nil
         }
-        .safeAreaInset(edge: .bottom) { statusBar }
         .sheet(item: $model.editing) { d in
             SetNetworkSheet(device: d)
                 .environmentObject(model)
