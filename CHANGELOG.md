@@ -38,6 +38,9 @@ All notable changes to ipcprobe. The format follows [Keep a Changelog](https://k
   selects what is shown, which makes "all the lobby cameras" a two-step batch. Its Filter menu adds criteria that
   cannot be typed — outside this subnet, shares an address, not named yet, and any model, firmware version or
   subnet present on the network, each with a count — shown as removable chips for as long as they apply.
+- **Plans from a spreadsheet.** `apply --plan` now reads a CSV file as well as JSON: export the camera list,
+  type the new addresses into it, and feed it back. Columns are found by header, blank cells keep the current
+  value, and comma, semicolon or tab separators all work, so a file saved by Excel can be used as it is.
 - `fakecam --count N [--same-ip]` runs several software cameras, for trying a batch without hardware.
 
 ### Fixed

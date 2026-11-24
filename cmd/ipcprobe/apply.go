@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/netip"
 	"os"
@@ -339,53 +338,6 @@ func exitFor(items []batch.Item) int {
 		}
 	}
 	return 0
-}
-
-// readPlan reads a JSON array of {"mac","ip","mask","gateway","dns1","dns2"} objects. Every field but mac is
-// optional; other keys are ignored, so the output of `list --json` can be edited and fed straight back in. A plan
-// never contains a password.
-func readPlan(path string) ([]batch.Request, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var entries []struct {
-		MAC     string `json:"mac"`
-		IP      string `json:"ip"`
-		Mask    string `json:"mask"`
-		Gateway string `json:"gateway"`
-		DNS1    string `json:"dns1"`
-		DNS2    string `json:"dns2"`
-	}
-	if err := json.Unmarshal(data, &entries); err != nil {
-		return nil, fmt.Errorf("%s: expected a JSON array of {\"mac\", \"ip\", \"mask\", \"gateway\", \"dns1\", \"dns2\"} objects: %v", path, err)
-	}
-	if len(entries) == 0 {
-		return nil, fmt.Errorf("%s: the plan is empty", path)
-	}
-	reqs := make([]batch.Request, 0, len(entries))
-	for i, e := range entries {
-		hw, err := parseMAC(e.MAC)
-		if err != nil {
-			return nil, fmt.Errorf("%s: entry %d: %v", path, i+1, err)
-		}
-		r := batch.Request{MAC: hw.String()}
-		for _, o := range []struct {
-			name, s string
-			dst     *netip.Addr
-		}{{"ip", e.IP, &r.IP}, {"mask", e.Mask, &r.Mask}, {"gateway", e.Gateway, &r.Gateway}, {"dns1", e.DNS1, &r.DNS1}, {"dns2", e.DNS2, &r.DNS2}} {
-			if o.s == "" {
-				continue
-			}
-			a, err := netip.ParseAddr(o.s)
-			if err != nil || !a.Is4() {
-				return nil, fmt.Errorf("%s: entry %d (%s): %s %q is not an IPv4 address", path, i+1, hw, o.name, o.s)
-			}
-			*o.dst = a
-		}
-		reqs = append(reqs, r)
-	}
-	return reqs, nil
 }
 
 // printBatch renders the plan or its outcome as a table: one row per camera, "old -> new" where a field changes,

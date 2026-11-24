@@ -10,6 +10,7 @@ code that sends and receives them.
 cmd/ipcprobe/            the executable: argument parsing, printing, exit codes
     main.go              list / show / set / interfaces
     apply.go             apply: several cameras at once
+    plan.go              reading a plan file (CSV or JSON)
     watch.go             watch: the list, live
     export.go            --csv
     password.go          reading the admin password without echo
@@ -328,6 +329,14 @@ Confirmation is the same rule as `set`: the MAC re-announcing the whole target c
 the same address. So each datagram of a batch leaves from its own socket, kept open until the round is over
 (`discovery.SendSetTracked`), and an ack is matched to a device by the port it echoes. That is what lets the report
 say, per camera, "received but not applied" versus "never reached it".
+
+**Plan files (`plan.go`).** `--plan` reads either a JSON array or a spreadsheet saved as CSV, told apart by the
+first character. The CSV reader is built for files people make: the separator is whichever of comma, semicolon
+and tab the header row uses most (Excel writes semicolons wherever the comma is the decimal sign), a byte-order
+mark is skipped, columns are found by header in any order and spelling, extra columns are ignored, blank cells
+mean "keep" and empty rows are skipped. `New IP` wins over `IP`, so both of the tool's own exports — the camera
+list and a batch's outcome — are valid plans as they are; a test holds that to be true. Errors name the row as the
+spreadsheet numbers it. A plan with a password in it is refused, not read.
 
 **The command (`apply.go`).** Flags or a `--plan` file become requests; the plan is printed; `--dry-run` stops
 there. Otherwise the password is read (one for all — a plan file never contains one), the user is asked to

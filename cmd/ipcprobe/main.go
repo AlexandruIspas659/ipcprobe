@@ -74,9 +74,10 @@ prints the whole list as one JSON object per line whenever it changes.
 
 apply changes several cameras at once with one admin password. Whatever is not given is kept from each camera's
 current configuration: --start-ip hands out consecutive addresses in the order the cameras are listed, while
---gw / --mask / --dns1 / --dns2 alone change those fields in place. --plan takes a JSON array of
-{"mac","ip","mask","gateway","dns1","dns2"} objects (the shape of "list --json"). --dry-run shows what would
-happen and sends nothing.
+--gw / --mask / --dns1 / --dns2 alone change those fields in place. --plan takes a file with one camera per row:
+a spreadsheet saved as CSV with the columns MAC, New IP (or IP), Mask, Gateway, DNS 1, DNS 2 — "list --csv" with
+the addresses typed over is one — or a JSON array of {"mac","ip","mask","gateway","dns1","dns2"} objects.
+--dry-run shows what would happen and sends nothing.
 
 Before a camera is given a new address on this computer's own subnet, set and apply check that nothing else on
 the network holds it (cameras are known from discovery; for everything else the system's neighbour table is asked)

@@ -58,7 +58,7 @@ ipcprobe set  --mac 58:5b:69:00:00:01 --ip 192.168.1.68 --mask 255.255.255.0 --g
               [--dns1 ...] [--dns2 ...] [--iface en0] [--password ...] [--force]
 ipcprobe apply --mac <mac>,<mac>,... --start-ip 192.168.1.100          # consecutive addresses
 ipcprobe apply --all --gw 192.168.1.254 --dns1 192.168.1.254            # same change on every camera, in place
-ipcprobe apply --plan plan.json                                         # an explicit address per camera
+ipcprobe apply --plan plan.csv                                          # an explicit address per camera (CSV or JSON)
 ipcprobe apply --all --rescue                                           # bring stranded cameras into this subnet
 ipcprobe watch [--iface en0] [--json]                                   # keep listening; report changes live
 ipcprobe interfaces [--json]
@@ -79,9 +79,13 @@ ipcprobe interfaces [--json]
   password).
 - `apply` — change several cameras at once, with one admin password. Anything you don't give is kept from each
   camera's current configuration, so `--start-ip` numbers a row of new cameras (in the order listed, `--step` apart)
-  and `--mask` / `--gw` / `--dns1` / `--dns2` alone change those in place. `--plan` takes a JSON array of
-  `{"mac","ip","mask","gateway","dns1","dns2"}` — the shape of `list --json`, so you can save that, edit it and feed
-  it back. It shows the plan and asks before sending (`--dry-run` only shows it; `--yes` skips the question), refuses
+  and `--mask` / `--gw` / `--dns1` / `--dns2` alone change those in place. `--plan` takes a file that says camera
+  by camera what to change — the way to decide in a spreadsheet who gets which address. Save the list with
+  `list --csv`, type the new addresses over the old ones (or into a column called `New IP`), and feed the file back:
+  columns are found by their header (`MAC`, `New IP` or `IP`, `Mask`, `Gateway`, `DNS 1`, `DNS 2`), everything else
+  is ignored, a blank cell means "keep", and comma, semicolon and tab separators are all read, so a file saved by
+  Excel works wherever you are. A JSON array of `{"mac","ip","mask","gateway","dns1","dns2"}` (the shape of
+  `list --json`) works too. A plan never holds a password; a file that has one is refused. It shows the plan and asks before sending (`--dry-run` only shows it; `--yes` skips the question), refuses
   a plan that would put two devices on one address, and tries the first camera alone before the rest so a wrong
   password reaches one camera, not all of them (`--no-canary` to send everything at once). Cameras with different
   passwords go in separate runs.
